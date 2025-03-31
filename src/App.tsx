@@ -12,6 +12,7 @@ import ExpensesPage from "./pages/ExpensesPage";
 import RemindersPage from "./pages/RemindersPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const AppWithAuth = () => {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           
           <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
           <Route path="/chores" element={<ProtectedRoute><ChoresPage /></ProtectedRoute>} />

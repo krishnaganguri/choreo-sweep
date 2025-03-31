@@ -3,7 +3,6 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
-import { useToast } from '@/hooks/use-toast';
 import { toast } from 'sonner';
 
 type AuthContextType = {
@@ -12,6 +11,7 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, username: string) => Promise<void>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   loading: boolean;
 };
 
@@ -22,7 +22,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const { toast: uiToast } = useToast();
 
   useEffect(() => {
     // Get initial session
@@ -107,6 +106,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const resetPassword = async (email: string) => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/reset-password',
+      });
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast.success("Password reset email sent", {
+        description: "Check your email for a link to reset your password.",
+        duration: 5000
+      });
+      
+    } catch (error: any) {
+      toast.error("Failed to send reset email", {
+        description: error.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const signOut = async () => {
     try {
       setLoading(true);
@@ -132,7 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, signIn, signUp, signOut, loading }}>
+    <AuthContext.Provider value={{ session, user, signIn, signUp, signOut, resetPassword, loading }}>
       {children}
     </AuthContext.Provider>
   );

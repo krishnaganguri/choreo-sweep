@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 // When using the Lovable Supabase integration, these values are automatically injected
@@ -80,6 +81,26 @@ if (mockEnabled) {
   mockAuth.signOut = async () => {
     console.log('Mock sign out called');
     return { error: null };
+  };
+  
+  // Mock resetPasswordForEmail method
+  mockAuth.resetPasswordForEmail = async (email: string, options: any) => {
+    console.log('Mock reset password called for:', email, options);
+    return { error: null };
+  };
+  
+  // Mock updateUser method
+  mockAuth.updateUser = async (params: any) => {
+    console.log('Mock update user called with:', params);
+    return {
+      data: {
+        user: {
+          id: 'mock-user-id',
+          email: 'mock@example.com'
+        }
+      },
+      error: null
+    };
   };
 }
 

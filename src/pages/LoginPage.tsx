@@ -5,24 +5,30 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Eye, EyeOff } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-// Define the validation schema
+// Define the validation schemas
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   password: z.string().min(1, "Password is required"),
 });
 
+const resetSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+});
+
 type LoginFormValues = z.infer<typeof loginSchema>;
+type ResetFormValues = z.infer<typeof resetSchema>;
 
 const LoginPage = () => {
-  const { signIn, loading } = useAuth();
+  const { signIn, resetPassword, loading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -32,8 +38,21 @@ const LoginPage = () => {
     },
   });
 
+  const resetForm = useForm<ResetFormValues>({
+    resolver: zodResolver(resetSchema),
+    defaultValues: {
+      email: "",
+    },
+  });
+
   const onSubmit = async (values: LoginFormValues) => {
     await signIn(values.email, values.password);
+  };
+
+  const onResetSubmit = async (values: ResetFormValues) => {
+    await resetPassword(values.email);
+    setResetDialogOpen(false);
+    resetForm.reset();
   };
 
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
@@ -70,9 +89,46 @@ const LoginPage = () => {
                   <FormItem>
                     <div className="flex items-center justify-between">
                       <FormLabel>Password</FormLabel>
-                      <Link to="/reset-password" className="text-sm text-primary hover:underline">
-                        Forgot password?
-                      </Link>
+                      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="link" className="p-0 h-auto text-sm">
+                            Forgot password?
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Reset your password</DialogTitle>
+                            <DialogDescription>
+                              Enter your email address and we'll send you a link to reset your password.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <Form {...resetForm}>
+                            <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className="space-y-4">
+                              <FormField
+                                control={resetForm.control}
+                                name="email"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Email</FormLabel>
+                                    <FormControl>
+                                      <Input placeholder="name@example.com" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <DialogFooter>
+                                <Button type="button" variant="outline" onClick={() => setResetDialogOpen(false)}>
+                                  Cancel
+                                </Button>
+                                <Button type="submit" disabled={loading}>
+                                  {loading ? "Sending..." : "Send reset link"}
+                                </Button>
+                              </DialogFooter>
+                            </form>
+                          </Form>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                     <FormControl>
                       <div className="relative">
