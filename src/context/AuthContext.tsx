@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 type AuthContextType = {
   session: Session | null;
@@ -21,7 +22,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
 
   useEffect(() => {
     // Get initial session
@@ -50,17 +51,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
       
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully signed in.",
+      // Use sonner toast for better visual feedback
+      toast.success("Welcome back!", {
+        description: "You have successfully signed in to HomeSync.",
       });
       
       navigate('/');
     } catch (error: any) {
-      toast({
-        title: "Sign in failed",
+      toast.error("Sign in failed", {
         description: error.message,
-        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -76,7 +75,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         options: {
           data: {
             username,
-          }
+          },
+          emailRedirectTo: window.location.origin + '/login'
         }
       });
       
@@ -89,19 +89,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase.from('profiles').insert([
           { id: data.user.id, username, created_at: new Date().toISOString() }
         ]);
+        
+        // Use sonner toast for better visual feedback
+        toast.success("Account created", {
+          description: "Please check your email to verify your account.",
+          duration: 5000
+        });
+        
+        navigate('/login');
       }
-      
-      toast({
-        title: "Account created",
-        description: "You have successfully signed up. Check your email for verification.",
-      });
-      
-      navigate('/');
     } catch (error: any) {
-      toast({
-        title: "Sign up failed",
+      toast.error("Sign up failed", {
         description: error.message,
-        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -117,17 +116,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
       
-      toast({
-        title: "Signed out",
+      // Use sonner toast for better visual feedback
+      toast.success("Signed out", {
         description: "You have been successfully signed out.",
       });
       
       navigate('/login');
     } catch (error: any) {
-      toast({
-        title: "Sign out failed",
+      toast.error("Sign out failed", {
         description: error.message,
-        variant: "destructive",
       });
     } finally {
       setLoading(false);
