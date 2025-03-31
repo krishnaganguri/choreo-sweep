@@ -5,13 +5,18 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables. Make sure the Supabase integration is properly connected.');
-}
+// Debug logs to check environment variables
+console.log('VITE_SUPABASE_URL available:', !!supabaseUrl);
+console.log('VITE_SUPABASE_ANON_KEY available:', !!supabaseAnonKey);
+
+// Use default empty strings if environment variables are not available
+// This prevents the "supabaseUrl is required" error, though the client won't work properly
+const fallbackUrl = 'https://placeholder-url.supabase.co';
+const fallbackKey = 'placeholder-key';
 
 export const supabase = createClient(
-  supabaseUrl,
-  supabaseAnonKey
+  supabaseUrl || fallbackUrl,
+  supabaseAnonKey || fallbackKey
 );
 
 // Define types for your database tables
