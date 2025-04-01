@@ -1,6 +1,6 @@
 
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,9 +26,10 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 type ResetFormValues = z.infer<typeof resetSchema>;
 
 const LoginPage = () => {
-  const { signIn, resetPassword, loading } = useAuth();
+  const { signIn, resetPassword, loading, user, session } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const navigate = useNavigate();
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -45,7 +46,17 @@ const LoginPage = () => {
     },
   });
 
+  // Effect for automatic redirect if user is already logged in
+  useEffect(() => {
+    console.log("LoginPage effect - User:", user, "Session:", session);
+    if (user) {
+      console.log("User is authenticated, redirecting to homepage");
+      navigate('/');
+    }
+  }, [user, navigate]);
+
   const onSubmit = async (values: LoginFormValues) => {
+    console.log("Login submission with:", values);
     await signIn(values.email, values.password);
   };
 

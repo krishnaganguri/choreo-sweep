@@ -21,14 +21,19 @@ const queryClient = new QueryClient();
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   
+  // Add debug information
+  console.log('ProtectedRoute check:', { user, loading });
+  
   if (loading) {
     return <div className="flex h-screen items-center justify-center">Loading...</div>;
   }
   
   if (!user) {
+    console.log('User not authenticated, redirecting to login');
     return <Navigate to="/login" replace />;
   }
   
+  console.log('User authenticated, rendering protected content');
   return <>{children}</>;
 };
 
