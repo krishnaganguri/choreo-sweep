@@ -2,7 +2,11 @@
 import React from "react";
 import AppLayout from "../components/layout/AppLayout";
 import DashboardCard from "../components/dashboard/DashboardCard";
-import { ClipboardList, ShoppingCart, DollarSign, Bell } from "lucide-react";
+import HouseholdStats from "../components/dashboard/HouseholdStats";
+import RecentActivities from "../components/dashboard/RecentActivities";
+import UpcomingTasks from "../components/dashboard/UpcomingTasks";
+import { ClipboardList, ShoppingCart, DollarSign, Bell, User } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 const Index = () => {
   // Mock data - in a real app, this would come from state or API
@@ -13,15 +17,29 @@ const Index = () => {
     reminders: 3
   };
 
+  const { user } = useAuth();
+  
+  // Get user's first name for greeting
+  const firstName = user?.email ? user.email.split('@')[0] : 'there';
+
   return (
     <AppLayout>
       <div className="space-y-6">
         <div className="flex flex-col space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Home Dashboard</h1>
+          <div className="flex items-center">
+            <h1 className="text-3xl font-bold tracking-tight">
+              Hello, {firstName}
+            </h1>
+            <div className="ml-auto flex items-center bg-primary/10 p-2 rounded-full">
+              <User className="h-5 w-5 text-primary" />
+            </div>
+          </div>
           <p className="text-muted-foreground">
-            Manage your household tasks and activities all in one place.
+            Welcome to your HomeSync dashboard. Here's what's happening today.
           </p>
         </div>
+        
+        <HouseholdStats />
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <DashboardCard
@@ -61,18 +79,9 @@ const Index = () => {
           />
         </div>
         
-        <div className="card-container">
-          <h2 className="font-semibold text-lg mb-2">Quick Stats</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-secondary p-3 rounded-lg">
-              <p className="text-sm text-muted-foreground">Tasks completed</p>
-              <p className="text-2xl font-bold">16</p>
-            </div>
-            <div className="bg-secondary p-3 rounded-lg">
-              <p className="text-sm text-muted-foreground">Upcoming tasks</p>
-              <p className="text-2xl font-bold">7</p>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <RecentActivities />
+          <UpcomingTasks />
         </div>
       </div>
     </AppLayout>
