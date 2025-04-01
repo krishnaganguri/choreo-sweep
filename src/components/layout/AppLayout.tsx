@@ -33,7 +33,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
-      <main className="flex-1 pb-20"> {/* Increased bottom padding to prevent content overlap */}
+      <main className="flex-1 pb-24"> {/* Increased bottom padding to prevent content overlap */}
         <div className="app-container py-4 px-4 md:px-6">
           {children}
         </div>
