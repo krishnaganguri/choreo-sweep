@@ -1,22 +1,36 @@
 
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, User, Mail, Key } from "lucide-react";
+import { toast } from "sonner";
+import PasswordStrengthIndicator from "@/components/auth/PasswordStrengthIndicator";
+import TermsAndConditions from "@/components/auth/TermsAndConditions";
 
 // Define the validation schema
 const signupSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
+  username: z
+    .string()
+    .min(3, "Username must be at least 3 characters")
+    .max(50, "Username must be less than 50 characters")
+    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
   email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number"),
+  acceptTerms: z.boolean().refine(val => val, {
+    message: "You must accept the terms and conditions"
+  })
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
@@ -24,6 +38,7 @@ type SignupFormValues = z.infer<typeof signupSchema>;
 const SignupPage = () => {
   const { signUp, loading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -31,14 +46,29 @@ const SignupPage = () => {
       username: "",
       email: "",
       password: "",
+      acceptTerms: false
     },
+    mode: "onChange" // Validate on change for real-time feedback
   });
 
   const onSubmit = async (values: SignupFormValues) => {
-    await signUp(values.email, values.password, values.username);
+    try {
+      await signUp(values.email, values.password, values.username);
+      toast.success("Account created successfully", {
+        description: "Please check your email to verify your account"
+      });
+      // We'll navigate to login after a short delay to allow the user to read the success message
+      setTimeout(() => navigate("/login"), 2000);
+    } catch (error) {
+      console.error("Signup error:", error);
+      // Error handling is already done in the AuthContext
+    }
   };
 
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
+  
+  // Get the current password value for the strength meter
+  const watchPassword = form.watch("password");
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
@@ -59,7 +89,10 @@ const SignupPage = () => {
                   <FormItem>
                     <FormLabel>Username</FormLabel>
                     <FormControl>
-                      <Input placeholder="johndoe" {...field} />
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input className="pl-9" placeholder="johndoe" {...field} />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -72,7 +105,10 @@ const SignupPage = () => {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="name@example.com" {...field} />
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input type="email" className="pl-9" placeholder="name@example.com" {...field} />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -86,8 +122,10 @@ const SignupPage = () => {
                     <FormLabel>Password</FormLabel>
                     <FormControl>
                       <div className="relative">
+                        <Key className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input 
                           type={showPassword ? "text" : "password"} 
+                          className="pl-9"
                           {...field} 
                         />
                         <Button
@@ -101,12 +139,15 @@ const SignupPage = () => {
                         </Button>
                       </div>
                     </FormControl>
+                    <PasswordStrengthIndicator password={watchPassword} />
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              
+              <TermsAndConditions control={form.control} name="acceptTerms" />
             </CardContent>
-            <CardFooter className="flex flex-col space-y-2">
+            <CardFooter className="flex flex-col space-y-4">
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Creating account..." : "Create account"}
               </Button>

@@ -9,7 +9,7 @@ import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Mail, Key } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 // Define the validation schemas
@@ -76,7 +76,10 @@ const LoginPage = () => {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="name@example.com" {...field} />
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input type="email" className="pl-9" placeholder="name@example.com" {...field} />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -111,7 +114,10 @@ const LoginPage = () => {
                                   <FormItem>
                                     <FormLabel>Email</FormLabel>
                                     <FormControl>
-                                      <Input placeholder="name@example.com" {...field} />
+                                      <div className="relative">
+                                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input className="pl-9" placeholder="name@example.com" {...field} />
+                                      </div>
                                     </FormControl>
                                     <FormMessage />
                                   </FormItem>
@@ -132,8 +138,10 @@ const LoginPage = () => {
                     </div>
                     <FormControl>
                       <div className="relative">
+                        <Key className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                         <Input 
                           type={showPassword ? "text" : "password"} 
+                          className="pl-9"
                           {...field} 
                         />
                         <Button
@@ -152,7 +160,7 @@ const LoginPage = () => {
                 )}
               />
             </CardContent>
-            <CardFooter className="flex flex-col space-y-2">
+            <CardFooter className="flex flex-col space-y-4">
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Signing in..." : "Sign in"}
               </Button>
