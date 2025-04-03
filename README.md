@@ -1,73 +1,134 @@
-# Welcome to your Lovable project
+# MyHomeManager - Family Task Management Application
 
-## Project info
+MyHomeManager is a modern web application designed to help families organize and manage their daily tasks, groceries, expenses, and reminders. Built with React, TypeScript, and Supabase, it provides a seamless experience for family collaboration.
 
-**URL**: https://lovable.dev/projects/08ac4eab-e2bf-4c35-901d-b7bcde09a478
+## Features
 
-## How can I edit this code?
+### 🏠 Dashboard
+- Overview of all family activities
+- Quick access to important tasks and reminders
 
-There are several ways of editing your application.
+### 👥 Family Management
+- Create and manage family groups
+- Invite family members
+- Assign roles (admin/member)
+- View pending invitations
+- Manage member permissions
 
-**Use Lovable**
+### ✅ Chores
+- Create and assign chores
+- Set due dates and priorities
+- Track completion status
+- Sort by due date and priority
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/08ac4eab-e2bf-4c35-901d-b7bcde09a478) and start prompting.
+### 🛒 Groceries
+- Maintain shared shopping lists
+- Add items with quantities
+- Categorize items
+- Mark items as purchased
 
-Changes made via Lovable will be committed automatically to this repo.
+### 💰 Expenses
+- Track family expenses
+- Categorize spending
+- Share bills and receipts
+- Monitor budget
 
-**Use your preferred IDE**
+### ⏰ Reminders
+- Set family-wide reminders
+- Receive notifications
+- Never miss important dates
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 👤 Profile Management
+- Customize display name
+- Manage account settings
+- View and update personal information
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Technology Stack
 
-Follow these steps:
+- **Frontend Framework**: React with TypeScript
+- **UI Components**: Shadcn UI
+- **Styling**: Tailwind CSS
+- **Authentication**: Supabase Auth
+- **Database**: Supabase
+- **State Management**: React Query
+- **Routing**: React Router
+- **Form Handling**: React Hook Form
+- **Notifications**: Web Push Notifications
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## Getting Started
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### Prerequisites
+- Node.js (v16 or higher)
+- npm or yarn
+- Supabase account
 
-# Step 3: Install the necessary dependencies.
-npm i
+### Installation
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd myhomemanager
 ```
 
-**Edit a file directly in GitHub**
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+3. Set up environment variables:
+Create a `.env` file in the root directory and add:
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-**Use GitHub Codespaces**
+4. Start the development server:
+```bash
+npm run dev
+# or
+yarn dev
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+The application will be available at `http://localhost:5173`
 
-## What technologies are used for this project?
+## Building for Production
 
-This project is built with .
+```bash
+npm run build
+# or
+yarn build
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Project Structure
 
-## How can I deploy this project?
+```
+src/
+├── components/         # Reusable UI components
+├── lib/               # Utilities and services
+│   ├── auth/         # Authentication logic
+│   ├── hooks/        # Custom React hooks
+│   └── services/     # API services
+├── pages/            # Application pages
+├── styles/           # Global styles
+└── types/            # TypeScript type definitions
+```
 
-Simply open [Lovable](https://lovable.dev/projects/08ac4eab-e2bf-4c35-901d-b7bcde09a478) and click on Share -> Publish.
+## Contributing
 
-## Can I connect a custom domain to my Lovable project?
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-Yes it is!
+## License
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## Acknowledgments
+
+- [Shadcn UI](https://ui.shadcn.com/) for the beautiful UI components
+- [Supabase](https://supabase.com/) for the backend infrastructure
+- [Tailwind CSS](https://tailwindcss.com/) for the styling system

@@ -1,13 +1,9 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 // When using the Lovable Supabase integration, these values are automatically injected
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Debug logs to check environment variables
-console.log('VITE_SUPABASE_URL available:', !!supabaseUrl);
-console.log('VITE_SUPABASE_ANON_KEY available:', !!supabaseAnonKey);
 
 // Create a mock/dummy Supabase client for development if env vars aren't available
 const mockEnabled = !supabaseUrl || !supabaseAnonKey;
@@ -148,24 +144,49 @@ export type Profile = {
   created_at: string;
 };
 
+export type Family = {
+  id: string;
+  name: string;
+  created_at: string;
+  created_by: string;
+};
+
+export type FamilyMember = {
+  id: string;
+  family_id: string;
+  user_id: string;
+  role: 'admin' | 'member';
+  joined_at: string;
+  display_name: string;
+};
+
 export type Chore = {
   id: number;
   title: string;
+  description: string;
+  due_date: string;
   completed: boolean;
   recurring: boolean;
-  due_date: string;
-  user_id?: string;
+  recurring_interval?: string;
+  user_id: string;
+  family_id?: string;
+  assigned_to?: string;
   created_at: string;
+  is_personal: boolean;
 };
 
 export type GroceryItem = {
   id: number;
-  name: string;
-  checked: boolean;
-  category: string;
+  title: string;
   quantity: number;
-  user_id?: string;
+  unit: string;
+  category: string;
+  completed: boolean;
+  user_id: string;
+  family_id?: string;
+  added_by: string;
   created_at: string;
+  notes?: string;
 };
 
 export type Expense = {
@@ -174,8 +195,13 @@ export type Expense = {
   amount: number;
   category: string;
   date: string;
-  user_id?: string;
+  user_id: string;
+  family_id?: string;
+  is_personal: boolean;
+  split_type?: 'equal' | 'custom';
+  split_with?: string[];
   created_at: string;
+  notes?: string;
 };
 
 export type Reminder = {
@@ -185,6 +211,9 @@ export type Reminder = {
   time: string;
   completed: boolean;
   priority: "low" | "medium" | "high";
-  user_id?: string;
+  user_id: string;
+  family_id?: string;
+  is_personal: boolean;
+  notify_family?: boolean;
   created_at: string;
 };
