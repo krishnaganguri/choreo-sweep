@@ -32,6 +32,7 @@ export default defineConfig(({ mode }) => ({
   build: {
     sourcemap: false,
     rollupOptions: {
+      external: ['web-vitals'],
       output: {
         // Chunk splitting for better caching
         manualChunks: {

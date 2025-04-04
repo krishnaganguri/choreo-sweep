@@ -33,6 +33,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const handleAuthError = (error: any, action: string) => {
+    console.error(`${action} error:`, error);
+    
+    if (error instanceof AuthError) {
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error('Invalid email or password');
+      }
+      if (error.message.includes('Email not confirmed')) {
+        throw new Error('Please verify your email address');
+      }
+      if (error.message.includes('Rate limit')) {
+        throw new Error('Too many attempts. Please try again later');
+      }
+      if (error.message.includes('Network')) {
+        throw new Error('Network error. Please check your connection');
+      }
+    }
+    
+    // If we get here, it's an unexpected error
+    throw new Error(error.message || `Failed to ${action.toLowerCase()}`);
+  };
+
   const signIn = async (email: string, password: string) => {
     try {
       const { error, data } = await supabase.auth.signInWithPassword({
@@ -45,15 +67,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Set user immediately after successful sign in
       if (data.user) {
         setUser(data.user);
+        toast.success('Welcome back!');
       }
     } catch (error: any) {
-      console.error('Sign in error:', error);
-      if (error instanceof AuthError) {
-        if (error.message.includes('Invalid login credentials')) {
-          throw new Error('Invalid email or password');
-        }
-      }
-      throw new Error(error.message || 'Failed to sign in');
+      handleAuthError(error, 'Sign in');
     }
   };
 
@@ -102,19 +119,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (profileError) {
           console.error('Error creating profile:', profileError);
-          // Don't throw here as the user is already created
           toast.error('Profile creation failed', {
             description: 'Your account was created but profile setup failed. Please contact support.',
+          });
+        } else {
+          toast.success('Account created successfully!', {
+            description: 'Please check your email to verify your account.',
           });
         }
       }
     } catch (error: any) {
-      console.error('Sign up error:', error);
-      // Handle specific error cases
-      if (error.message.includes('already registered')) {
-        throw new Error('This email is already registered. Please try logging in instead.');
-      }
-      throw new Error(error.message || 'Failed to sign up');
+      handleAuthError(error, 'Sign up');
     }
   };
 
@@ -125,9 +140,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Clear user state after successful sign out
       setUser(null);
+      toast.success('Signed out successfully');
     } catch (error: any) {
-      console.error('Sign out error:', error);
-      throw new Error(error.message || 'Failed to sign out');
+      handleAuthError(error, 'Sign out');
     }
   };
 
