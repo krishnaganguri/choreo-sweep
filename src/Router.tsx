@@ -2,6 +2,8 @@ import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import AppLayout from "@/components/layout/AppLayout";
 import LoginPage from "@/pages/LoginPage";
+import SignupPage from "@/pages/SignupPage";
+import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import DashboardPage from "@/pages/DashboardPage";
 import ChoresPage from "@/pages/ChoresPage";
 import GroceriesPage from "@/pages/GroceriesPage";
@@ -9,6 +11,10 @@ import ExpensesPage from "@/pages/ExpensesPage";
 import RemindersPage from "@/pages/RemindersPage";
 import { FamilyPage } from "@/pages/FamilyPage";
 import ProfilePage from "@/pages/ProfilePage";
+import AboutPage from "@/pages/AboutPage";
+import ContactPage from "@/pages/ContactPage";
+import PrivacyPage from "@/pages/PrivacyPage";
+import TermsPage from "@/pages/TermsPage";
 
 // Protected Layout component that includes AppLayout
 const ProtectedLayout = () => {
@@ -29,7 +35,11 @@ const ProtectedLayout = () => {
     return <Navigate to="/login" replace />;
   }
 
-  return <Outlet />;
+  return (
+    <AppLayout>
+      <Outlet />
+    </AppLayout>
+  );
 };
 
 // Public route wrapper
@@ -41,15 +51,6 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   return <>{children}</>;
-};
-
-// Layout wrapper that includes AppLayout
-const AppLayoutWrapper = () => {
-  return (
-    <AppLayout>
-      <Outlet />
-    </AppLayout>
-  );
 };
 
 export function Router() {
@@ -64,18 +65,36 @@ export function Router() {
           </PublicRoute>
         }
       />
+      <Route
+        path="/signup"
+        element={
+          <PublicRoute>
+            <SignupPage />
+          </PublicRoute>
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <PublicRoute>
+            <ResetPasswordPage />
+          </PublicRoute>
+        }
+      />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
 
       {/* Protected routes */}
       <Route element={<ProtectedLayout />}>
-        <Route element={<AppLayoutWrapper />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/chores" element={<ChoresPage />} />
-          <Route path="/groceries" element={<GroceriesPage />} />
-          <Route path="/expenses" element={<ExpensesPage />} />
-          <Route path="/reminders" element={<RemindersPage />} />
-          <Route path="/family" element={<FamilyPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-        </Route>
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/chores" element={<ChoresPage />} />
+        <Route path="/groceries" element={<GroceriesPage />} />
+        <Route path="/expenses" element={<ExpensesPage />} />
+        <Route path="/reminders" element={<RemindersPage />} />
+        <Route path="/family" element={<FamilyPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
       </Route>
     </Routes>
   );
