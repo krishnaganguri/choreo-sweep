@@ -1,64 +1,48 @@
+import React from 'react';
+import { Progress } from '@/components/ui/progress';
 
-import React from "react";
-
-type PasswordStrengthIndicatorProps = {
+interface PasswordStrengthIndicatorProps {
   password: string;
-};
+}
 
-const PasswordStrengthIndicator = ({ password }: PasswordStrengthIndicatorProps) => {
-  // Calculate password strength
-  const getStrength = (password: string): number => {
+const PasswordStrengthIndicator: React.FC<PasswordStrengthIndicatorProps> = ({ password }) => {
+  const calculateStrength = (password: string): number => {
     let strength = 0;
     
-    if (password.length >= 8) strength += 1;
-    if (password.match(/[a-z]/) && password.match(/[A-Z]/)) strength += 1;
-    if (password.match(/[0-9]/)) strength += 1;
-    if (password.match(/[^a-zA-Z0-9]/)) strength += 1;
+    if (password.length >= 8) strength += 25;
+    if (password.match(/[A-Z]/)) strength += 25;
+    if (password.match(/[a-z]/)) strength += 25;
+    if (password.match(/[0-9]/)) strength += 25;
     
     return strength;
   };
 
-  const strength = getStrength(password);
-  
-  // Map strength to label and color
-  const getLabel = (strength: number): string => {
-    switch (strength) {
-      case 0: return "Too weak";
-      case 1: return "Weak";
-      case 2: return "Fair";
-      case 3: return "Good";
-      case 4: return "Strong";
-      default: return "";
-    }
+  const getStrengthText = (strength: number): string => {
+    if (strength === 0) return 'Very Weak';
+    if (strength <= 25) return 'Weak';
+    if (strength <= 50) return 'Fair';
+    if (strength <= 75) return 'Good';
+    return 'Strong';
   };
 
-  const getColor = (strength: number): string => {
-    switch (strength) {
-      case 0: return "bg-red-500";
-      case 1: return "bg-orange-500";
-      case 2: return "bg-yellow-500";
-      case 3: return "bg-blue-500";
-      case 4: return "bg-green-500";
-      default: return "bg-gray-200";
-    }
+  const getStrengthColor = (strength: number): string => {
+    if (strength === 0) return 'bg-destructive';
+    if (strength <= 25) return 'bg-destructive';
+    if (strength <= 50) return 'bg-yellow-500';
+    if (strength <= 75) return 'bg-blue-500';
+    return 'bg-green-500';
   };
 
-  if (!password) return null;
+  const strength = calculateStrength(password);
 
   return (
-    <div className="mt-2 space-y-1">
-      <div className="flex h-1.5 w-full gap-1">
-        {[...Array(4)].map((_, i) => (
-          <div
-            key={i}
-            className={`h-full flex-1 rounded-full transition-colors ${
-              i < strength ? getColor(strength) : "bg-gray-200"
-            }`}
-          />
-        ))}
-      </div>
-      <p className={`text-xs ${strength > 2 ? "text-green-600" : "text-muted-foreground"}`}>
-        {getLabel(strength)}
+    <div className="space-y-2">
+      <Progress 
+        value={strength} 
+        className={`h-2 ${getStrengthColor(strength)}`}
+      />
+      <p className="text-xs text-muted-foreground">
+        Password Strength: {getStrengthText(strength)}
       </p>
     </div>
   );

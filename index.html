@@ -7,6 +7,15 @@
     <title>MyHomeManager</title>
     <meta name="description" content="All-in-one household management app" />
     <meta name="author" content="Lovable" />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" sizes="196x196" href="icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png" />
+    <!-- iOS and Android meta tags -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MyHomeManager" />
 
     <meta property="og:title" content="HomeSync - Household Management" />
     <meta property="og:description" content="Track chores, groceries, expenses, and reminders in one app" />
@@ -23,5 +32,46 @@
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Disable service worker in development
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // Unregister any existing service workers in development
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for(let registration of registrations) {
+              registration.unregister();
+            }
+          });
+        }
+      } else {
+        // Only register service worker in production
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+              .then(registration => {
+                console.log('ServiceWorker registration successful');
+              })
+              .catch(err => {
+                console.log('ServiceWorker registration failed: ', err);
+              });
+          });
+        }
+      }
+
+      let deferredPrompt;
+      
+      // Handle install prompt
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        console.log('Install prompt ready');
+      });
+
+      // Track when the PWA is installed
+      window.addEventListener('appinstalled', () => {
+        console.log('PWA was installed');
+        deferredPrompt = null;
+      });
+    </script>
   </body>
 </html>

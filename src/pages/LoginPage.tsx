@@ -1,73 +1,51 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/components/ui/use-toast";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
-  const { toast } = useToast();
+  const [error, setError] = useState<string | null>(null);
+  const { signIn } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
     try {
       await signIn(email, password);
       navigate("/");
-      toast({
-        title: "Success",
-        description: "Logged in successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to log in. Please check your credentials.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      await signUp(email, password);
-      toast({
-        title: "Success",
-        description: "Please check your email to confirm your account.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to sign up. Please try again.",
-        variant: "destructive",
-      });
+    } catch (error: any) {
+      console.error("Login error:", error);
+      setError(error.message || "Failed to log in. Please check your credentials.");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Card className="w-[400px]">
-        <CardHeader>
-          <CardTitle>Welcome Back</CardTitle>
-          <CardDescription>
+    <div className="container mx-auto flex h-screen items-center justify-center px-4">
+      <Card className="w-full max-w-lg">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl text-center">Welcome Back</CardTitle>
+          <CardDescription className="text-center">
             Sign in to your account to continue
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -76,6 +54,8 @@ const LoginPage = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+                disabled={isLoading}
                 required
               />
             </div>
@@ -86,23 +66,28 @@ const LoginPage = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                disabled={isLoading}
                 required
               />
             </div>
-            <div className="flex flex-col gap-2">
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Sign In"}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleSignUp}
-                disabled={isLoading}
-              >
-                {isLoading ? "Creating account..." : "Create Account"}
-              </Button>
-            </div>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Signing in..." : "Sign In"}
+            </Button>
           </form>
+          <div className="mt-4 text-center text-sm">
+            <div className="text-muted-foreground">
+              Don't have an account?{" "}
+              <Link to="/signup" className="font-medium text-primary hover:underline">
+                Create one now
+              </Link>
+            </div>
+            <div className="mt-2 text-muted-foreground">
+              <Link to="/reset-password" className="font-medium text-primary hover:underline">
+                Forgot your password?
+              </Link>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

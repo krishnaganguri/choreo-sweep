@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
-import { User, Settings, LogOut } from "lucide-react";
+import { User, Settings, LogOut, HelpCircle, Mail, Shield, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "./ui/use-toast";
 
@@ -33,6 +33,10 @@ export function ProfileMenu() {
     }
   };
 
+  const handleExternalLink = (path: string) => {
+    window.open(path, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -50,6 +54,24 @@ export function ProfileMenu() {
         <DropdownMenuItem className="flex items-center gap-2" onClick={() => navigate("/settings")}>
           <Settings className="h-4 w-4" />
           <span>Settings</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="flex items-center gap-2" onClick={() => navigate("/about")}>
+          <HelpCircle className="h-4 w-4" />
+          <span>About</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem className="flex items-center gap-2" onClick={() => navigate("/contact")}>
+          <Mail className="h-4 w-4" />
+          <span>Contact</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="flex items-center gap-2" onClick={() => handleExternalLink('/privacy')}>
+          <Shield className="h-4 w-4" />
+          <span>Privacy Policy</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem className="flex items-center gap-2" onClick={() => handleExternalLink('/terms')}>
+          <FileText className="h-4 w-4" />
+          <span>Terms of Service</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="flex items-center gap-2" onClick={handleSignOut}>
