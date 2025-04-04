@@ -26,14 +26,12 @@ export default defineConfig(({ mode }) => ({
   ].filter(Boolean),
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
-      'web-vitals': path.resolve(__dirname, 'node_modules/web-vitals')
-    },
+      "@": path.resolve(__dirname, "./src")
+    }
   },
   build: {
     sourcemap: false,
     rollupOptions: {
-      external: ['web-vitals'],
       output: {
         // Chunk splitting for better caching
         manualChunks: {
