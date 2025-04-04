@@ -22,11 +22,12 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    mode === 'development' && componentTagger(),
+    process.env.NODE_ENV === 'development' && componentTagger(),
   ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      'web-vitals': path.resolve(__dirname, 'node_modules/web-vitals')
     },
   },
   build: {
@@ -36,26 +37,18 @@ export default defineConfig(({ mode }) => ({
       output: {
         // Chunk splitting for better caching
         manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js'],
-          ui: Object.keys(require('./package.json').dependencies)
-            .filter(pkg => pkg.startsWith('@radix-ui')),
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          ui: [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-toast',
+            '@radix-ui/react-label',
+            '@radix-ui/react-slot'
+          ]
         },
         // Add hashes to file names for cache busting
-        entryFileNames: 'assets/[name].[hash].js',
-        chunkFileNames: 'assets/[name].[hash].js',
-        assetFileNames: (assetInfo) => {
-          const fileName = assetInfo.name || '';
-          if (/\.(png|jpe?g|gif|svg|webp|ico)$/.test(fileName)) {
-            return `assets/images/[name].[hash][extname]`;
-          }
-          if (/\.(woff2?|eot|ttf|otf)$/.test(fileName)) {
-            return `assets/fonts/[name].[hash][extname]`;
-          }
-          if (/\.css$/.test(fileName)) {
-            return `assets/css/[name].[hash][extname]`;
-          }
-          return `assets/[name].[hash][extname]`;
-        }
+        entryFileNames: 'assets/js/[name]-[hash].js',
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]'
       }
     },
     // Optimize chunk size

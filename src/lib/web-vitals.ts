@@ -1,20 +1,15 @@
-import { onCLS, onFID, onLCP, onFCP, onTTFB, type Metric } from 'web-vitals';
+import { onCLS, onFID, onLCP, onFCP, onTTFB } from 'web-vitals';
 
-function sendToAnalytics(metric: Metric) {
-  const body = JSON.stringify(metric);
-  // Send to your analytics endpoint
-  if (import.meta.env.PROD) {
-    fetch('/api/analytics', {
-      body,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+const sendToAnalytics = (metric: any) => {
+  // In production, send to analytics
+  if (process.env.NODE_ENV === 'production') {
+    // Send to your analytics service
+    console.log(metric);
   } else {
-    console.log('Web Vitals:', metric);
+    // In development, log to console
+    console.log(metric);
   }
-}
+};
 
 export function reportWebVitals() {
   if (typeof window !== 'undefined') {
