@@ -16,10 +16,9 @@ import { useSortableList } from "@/lib/hooks/useSortableList";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { Expense } from "@/lib/types";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const ExpensesPage = () => {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
@@ -30,100 +29,119 @@ const ExpensesPage = () => {
   const { currentFamily } = useFamily();
   const { sortConfig, handleSort, getSortedItems } = useSortableList<'date' | 'amount' | 'category'>('date');
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    loadExpenses();
-  }, []);
-
-  const loadExpenses = async () => {
-    try {
-      const data = await expensesService.getExpenses();
-      setExpenses(data);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load expenses. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const sortedExpenses = getSortedItems(expenses, undefined, (a, b, sortBy, sortOrder) => {
-    switch (sortBy) {
-      case 'date':
-        const dateA = new Date(a.date).getTime();
-        const dateB = new Date(b.date).getTime();
-        return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
-      case 'amount':
-        return sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
-      case 'category':
-        return sortOrder === 'asc'
-          ? a.category.localeCompare(b.category)
-          : b.category.localeCompare(a.category);
-      default:
-        return 0;
-    }
+  // Query for fetching expenses
+  const { data: expenses = [], isLoading } = useQuery({
+    queryKey: ['expenses', currentFamily?.id],
+    queryFn: () => expensesService.getExpenses(currentFamily?.id),
+    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
   });
 
-  const handleAddExpense = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title || !amount || !date) return;
-
-    try {
-      const newExpense = await expensesService.addExpense({
-        title,
-        amount: parseFloat(amount),
-        category,
-        date,
-        is_personal: isPersonal,
-        family_id: !isPersonal ? currentFamily?.id : undefined
+  // Mutation for adding expenses
+  const addExpenseMutation = useMutation({
+    mutationFn: expensesService.addExpense,
+    onSuccess: (newExpense) => {
+      queryClient.setQueryData(['expenses', currentFamily?.id], (old: Expense[] = []) => [newExpense, ...old]);
+      queryClient.invalidateQueries({ 
+        queryKey: ['dashboardStats', currentFamily?.id ?? (currentFamily === null ? 'personal' : 'all')],
       });
-      setExpenses([newExpense, ...expenses]);
       setShowForm(false);
       resetForm();
       toast({
         title: "Success",
         description: "Expense added successfully.",
       });
-    } catch (error) {
+    },
+    onError: (error) => {
       toast({
         title: "Error",
         description: "Failed to add expense. Please try again.",
         variant: "destructive",
       });
-    }
-  };
+    },
+  });
 
-  const handleEditExpense = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingExpense || !title || !amount || !date) return;
-
-    try {
-      const updatedExpense = await expensesService.updateExpense(editingExpense.id, {
-        title,
-        amount: parseFloat(amount),
-        category,
-        date,
-        is_personal: isPersonal,
-        family_id: !isPersonal ? currentFamily?.id : undefined
+  // Mutation for updating expenses
+  const updateExpenseMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: number; updates: Partial<Expense> }) => 
+      expensesService.updateExpense(id, updates),
+    onSuccess: (updatedExpense) => {
+      queryClient.setQueryData(['expenses', currentFamily?.id], (old: Expense[] = []) => 
+        old.map(exp => exp.id === updatedExpense.id ? updatedExpense : exp)
+      );
+      queryClient.invalidateQueries({ 
+        queryKey: ['dashboardStats', currentFamily?.id ?? (currentFamily === null ? 'personal' : 'all')],
       });
-
-      setExpenses(expenses.map(exp => exp.id === editingExpense.id ? updatedExpense : exp));
       setShowForm(false);
       resetForm();
       toast({
         title: "Success",
         description: "Expense updated successfully.",
       });
-    } catch (error) {
+    },
+    onError: (error) => {
       toast({
         title: "Error",
         description: "Failed to update expense. Please try again.",
         variant: "destructive",
       });
-    }
+    },
+  });
+
+  // Mutation for deleting expenses
+  const deleteExpenseMutation = useMutation({
+    mutationFn: expensesService.deleteExpense,
+    onSuccess: (_, deletedId) => {
+      queryClient.setQueryData(['expenses', currentFamily?.id], (old: Expense[] = []) => 
+        old.filter(exp => exp.id !== deletedId)
+      );
+      queryClient.invalidateQueries({ 
+        queryKey: ['dashboardStats', currentFamily?.id ?? (currentFamily === null ? 'personal' : 'all')],
+      });
+      toast({
+        title: "Success",
+        description: "Expense deleted successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete expense. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !amount || !date) return;
+
+    addExpenseMutation.mutate({
+      title,
+      amount: parseFloat(amount),
+      category,
+      date,
+      is_personal: isPersonal,
+      family_id: !isPersonal ? currentFamily?.id : undefined
+    });
+  };
+
+  const handleEditExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingExpense || !title || !amount || !date) return;
+
+    updateExpenseMutation.mutate({
+      id: editingExpense.id,
+      updates: {
+        title,
+        amount: parseFloat(amount),
+        category,
+        date,
+        is_personal: isPersonal,
+        family_id: !isPersonal ? currentFamily?.id : undefined
+      }
+    });
   };
 
   const startEdit = (expense: Expense) => {
@@ -146,20 +164,7 @@ const ExpensesPage = () => {
   };
 
   const deleteExpense = async (id: number) => {
-    try {
-      await expensesService.deleteExpense(id);
-      setExpenses(expenses.filter(exp => exp.id !== id));
-      toast({
-        title: "Success",
-        description: "Expense deleted successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete expense. Please try again.",
-        variant: "destructive",
-      });
-    }
+    deleteExpenseMutation.mutate(id);
   };
 
   // Calculate totals and prepare data for reports
@@ -204,18 +209,18 @@ const ExpensesPage = () => {
   }).reverse();
 
   const categories = [
-    "food",
+    "groceries",
     "utilities",
     "rent",
-    "transportation",
     "entertainment",
+    "transportation",
     "healthcare",
-    "shopping",
     "education",
+    "shopping",
     "other"
   ];
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">
@@ -228,21 +233,21 @@ const ExpensesPage = () => {
 
   return (
     <div className="space-y-6 pb-12 mb-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-expenses">Expenses</h1>
-          <p className="text-muted-foreground">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-expenses">Expenses</h1>
+            <p className="text-muted-foreground">
             {currentFamily ? `Manage ${currentFamily.name}'s expenses` : 'Manage your expenses'}
-          </p>
-        </div>
+            </p>
+          </div>
         <Dialog open={showForm} onOpenChange={(open) => {
           setShowForm(open);
           if (!open) resetForm();
         }}>
           <DialogTrigger asChild>
-            <Button className="bg-expenses hover:bg-expenses/90">
-              <Plus className="mr-2 h-4 w-4" /> Add Expense
-            </Button>
+          <Button className="bg-expenses hover:bg-expenses/90">
+            <Plus className="mr-2 h-4 w-4" /> Add Expense
+          </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -352,12 +357,27 @@ const ExpensesPage = () => {
       </div>
 
       <div className="space-y-3">
-        {sortedExpenses.length === 0 ? (
+        {expenses.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             No expenses yet. Add your first expense to get started!
           </div>
         ) : (
-          sortedExpenses.map((expense) => (
+          getSortedItems(expenses, undefined, (a, b, sortBy, sortOrder) => {
+            switch (sortBy) {
+              case 'date':
+                const dateA = new Date(a.date).getTime();
+                const dateB = new Date(b.date).getTime();
+                return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+              case 'amount':
+                return sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
+              case 'category':
+                return sortOrder === 'asc'
+                  ? a.category.localeCompare(b.category)
+                  : b.category.localeCompare(a.category);
+              default:
+                return 0;
+            }
+          }).map((expense) => (
             <div
               key={expense.id}
               className="card-container flex items-center gap-3"
@@ -402,25 +422,25 @@ const ExpensesPage = () => {
             </div>
           ))
         )}
-      </div>
+        </div>
 
-      <Card className="p-4">
-        <h2 className="text-xl font-semibold">Total Spent</h2>
-        <p className="text-3xl font-bold mt-1">${totalSpent.toFixed(2)}</p>
+        <Card className="p-4">
+          <h2 className="text-xl font-semibold">Total Spent</h2>
+          <p className="text-3xl font-bold mt-1">${totalSpent.toFixed(2)}</p>
         <p className="text-sm text-muted-foreground">
           {currentMonth}
         </p>
-      </Card>
+        </Card>
 
-      <Tabs defaultValue="recent">
+        <Tabs defaultValue="recent">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="recent">Recent</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
+            <TabsTrigger value="recent">Recent</TabsTrigger>
+            <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="monthly">Monthly Overview</TabsTrigger>
           <TabsTrigger value="trends">Spending Trends</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="recent" className="mt-4 space-y-4">
+          </TabsList>
+          
+          <TabsContent value="recent" className="mt-4 space-y-4">
           {expenses.length === 0 ? (
             <Card className="p-6 text-center">
               <DollarSign className="mx-auto h-12 w-12 text-muted-foreground opacity-50 mb-3" />
@@ -430,11 +450,26 @@ const ExpensesPage = () => {
               </p>
             </Card>
           ) : (
-            expenses.map((expense) => (
+            getSortedItems(expenses, undefined, (a, b, sortBy, sortOrder) => {
+              switch (sortBy) {
+                case 'date':
+                  const dateA = new Date(a.date).getTime();
+                  const dateB = new Date(b.date).getTime();
+                  return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+                case 'amount':
+                  return sortOrder === 'asc' ? a.amount - b.amount : b.amount - a.amount;
+                case 'category':
+                  return sortOrder === 'asc'
+                    ? a.category.localeCompare(b.category)
+                    : b.category.localeCompare(a.category);
+                default:
+                  return 0;
+              }
+            }).map((expense) => (
               <Card key={expense.id} className="p-4">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium">{expense.title}</h3>
+                <div>
+                  <h3 className="font-medium">{expense.title}</h3>
                     <p className="text-sm text-muted-foreground">
                       {expense.category} • {new Date(expense.date).toLocaleDateString()}
                     </p>
@@ -454,35 +489,35 @@ const ExpensesPage = () => {
               </Card>
             ))
           )}
-        </TabsContent>
-
-        <TabsContent value="categories" className="mt-4">
-          <Card className="p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold flex items-center gap-2">
-                <PieChart className="h-4 w-4 text-expenses" /> Expenses by Category
-              </h3>
-            </div>
-            <Separator />
-            <div className="space-y-3">
-              {Object.entries(expensesByCategory).map(([category, amount]) => (
-                <div key={category} className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-expenses"></div>
-                    <span>{category}</span>
+          </TabsContent>
+          
+          <TabsContent value="categories" className="mt-4">
+            <Card className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold flex items-center gap-2">
+                  <PieChart className="h-4 w-4 text-expenses" /> Expenses by Category
+                </h3>
+              </div>
+              <Separator />
+              <div className="space-y-3">
+                {Object.entries(expensesByCategory).map(([category, amount]) => (
+                  <div key={category} className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-expenses"></div>
+                      <span>{category}</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">${amount.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {Math.round((amount / totalSpent) * 100)}%
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">${amount.toFixed(2)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {Math.round((amount / totalSpent) * 100)}%
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </TabsContent>
-
+                ))}
+              </div>
+            </Card>
+          </TabsContent>
+          
         <TabsContent value="monthly" className="mt-4">
           <Card className="p-4 space-y-4">
             <div className="flex items-center justify-between">
@@ -519,9 +554,9 @@ const ExpensesPage = () => {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </Card>
+            </Card>
         </TabsContent>
-
+            
         <TabsContent value="trends" className="mt-4">
           <Card className="p-4 space-y-4">
             <div className="flex items-center justify-between">
@@ -547,10 +582,10 @@ const ExpensesPage = () => {
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
   );
 };
 

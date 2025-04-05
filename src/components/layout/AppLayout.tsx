@@ -46,11 +46,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <header className="border-b sticky top-0 bg-background z-50">
-        <div className="container py-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">MyHomeManager</h1>
-          <div className="flex items-center gap-4">
-            <FamilySelector />
-            <ProfileMenu />
+        <div className="container py-2 sm:py-4">
+          <div className="flex items-center justify-between gap-2">
+            <h1 className="text-lg sm:text-xl font-semibold truncate min-w-0">MyHomeManager</h1>
+            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+              <FamilySelector />
+              <ProfileMenu />
+            </div>
           </div>
         </div>
       </header>

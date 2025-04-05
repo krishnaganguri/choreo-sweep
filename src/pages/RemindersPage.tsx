@@ -15,10 +15,9 @@ import { useSortableList } from "@/lib/hooks/useSortableList";
 import type { Reminder } from "@/lib/types";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const RemindersPage = () => {
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -30,25 +29,14 @@ const RemindersPage = () => {
   const { currentFamily } = useFamily();
   const { sortConfig, handleSort, getSortedItems } = useSortableList<'date' | 'priority'>('date');
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    loadReminders();
-  }, []);
-
-  const loadReminders = async () => {
-    try {
-      const data = await remindersService.getReminders();
-      setReminders(data);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load reminders. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Query for fetching reminders
+  const { data: reminders = [], isLoading } = useQuery({
+    queryKey: ['reminders', currentFamily?.id],
+    queryFn: () => remindersService.getReminders(currentFamily?.id),
+    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
+  });
 
   const sortedReminders = getSortedItems(reminders, 'completed', (a, b, sortBy, sortOrder) => {
     switch (sortBy) {
@@ -68,43 +56,104 @@ const RemindersPage = () => {
     }
   });
 
-  const handleAddReminder = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title || !date || !time) return;
-
-    try {
-      const newReminder = await remindersService.addReminder({
-        title,
-        description,
-        date,
-        time,
-        priority,
-        completed: false,
-        is_personal: isPersonal,
-        family_id: !isPersonal ? currentFamily?.id : undefined
+  // Mutation for adding reminders
+  const addReminderMutation = useMutation({
+    mutationFn: remindersService.addReminder,
+    onSuccess: (newReminder) => {
+      queryClient.setQueryData(['reminders', currentFamily?.id], (old: Reminder[] = []) => [newReminder, ...old]);
+      queryClient.invalidateQueries({ 
+        queryKey: ['dashboardStats', currentFamily?.id ?? (currentFamily === null ? 'personal' : 'all')],
       });
-      setReminders([newReminder, ...reminders]);
       setShowForm(false);
       resetForm();
       toast({
         title: "Success",
         description: "Reminder added successfully.",
       });
-    } catch (error) {
+    },
+    onError: (error) => {
       toast({
         title: "Error",
         description: "Failed to add reminder. Please try again.",
         variant: "destructive",
       });
-    }
+    },
+  });
+
+  // Mutation for updating reminders
+  const updateReminderMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: number; updates: Partial<Reminder> }) => 
+      remindersService.updateReminder(id, updates),
+    onSuccess: (updatedReminder) => {
+      queryClient.setQueryData(['reminders', currentFamily?.id], (old: Reminder[] = []) => 
+        old.map(rem => rem.id === updatedReminder.id ? updatedReminder : rem)
+      );
+      queryClient.invalidateQueries({ 
+        queryKey: ['dashboardStats', currentFamily?.id ?? (currentFamily === null ? 'personal' : 'all')],
+      });
+      setShowForm(false);
+      resetForm();
+      toast({
+        title: "Success",
+        description: "Reminder updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to update reminder. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation for deleting reminders
+  const deleteReminderMutation = useMutation({
+    mutationFn: remindersService.deleteReminder,
+    onSuccess: (_, deletedId) => {
+      queryClient.setQueryData(['reminders', currentFamily?.id], (old: Reminder[] = []) => 
+        old.filter(rem => rem.id !== deletedId)
+      );
+      queryClient.invalidateQueries({ 
+        queryKey: ['dashboardStats', currentFamily?.id ?? (currentFamily === null ? 'personal' : 'all')],
+      });
+      toast({
+        title: "Success",
+        description: "Reminder deleted successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete reminder. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAddReminder = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !date || !time) return;
+
+    addReminderMutation.mutate({
+      title,
+      description,
+      date,
+      time,
+      priority,
+      completed: false,
+      is_personal: isPersonal,
+      family_id: !isPersonal ? currentFamily?.id : undefined
+    });
   };
 
   const handleEditReminder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingReminder || !title || !date || !time) return;
 
-    try {
-      const updatedReminder = await remindersService.updateReminder(editingReminder.id, {
+    updateReminderMutation.mutate({
+      id: editingReminder.id,
+      updates: {
         title,
         description,
         date,
@@ -112,22 +161,8 @@ const RemindersPage = () => {
         priority,
         is_personal: isPersonal,
         family_id: !isPersonal ? currentFamily?.id : undefined
-      });
-
-      setReminders(reminders.map(rem => rem.id === editingReminder.id ? updatedReminder : rem));
-      setShowForm(false);
-      resetForm();
-      toast({
-        title: "Success",
-        description: "Reminder updated successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update reminder. Please try again.",
-        variant: "destructive",
-      });
-    }
+      }
+    });
   };
 
   const startEdit = (reminder: Reminder) => {
@@ -151,40 +186,20 @@ const RemindersPage = () => {
     setEditingReminder(null);
   };
 
-  const toggleReminderCompletion = async (id: number) => {
-    try {
-      const reminder = reminders.find(r => r.id === id);
-      if (!reminder) return;
+  const toggleReminderCompletion = (id: number) => {
+    const reminder = reminders.find(r => r.id === id);
+    if (!reminder) return;
 
-      const updatedReminder = await remindersService.updateReminder(id, {
+    updateReminderMutation.mutate({
+      id,
+      updates: {
         completed: !reminder.completed
-      });
-
-      setReminders(reminders.map(r => r.id === id ? updatedReminder : r));
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update reminder. Please try again.",
-        variant: "destructive",
-      });
-    }
+      }
+    });
   };
 
-  const deleteReminder = async (id: number) => {
-    try {
-      await remindersService.deleteReminder(id);
-      setReminders(reminders.filter(r => r.id !== id));
-      toast({
-        title: "Success",
-        description: "Reminder deleted successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete reminder. Please try again.",
-        variant: "destructive",
-      });
-    }
+  const deleteReminder = (id: number) => {
+    deleteReminderMutation.mutate(id);
   };
 
   const priorityColors = {
@@ -193,7 +208,7 @@ const RemindersPage = () => {
     high: "text-red-500"
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">

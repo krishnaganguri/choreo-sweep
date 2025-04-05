@@ -1,70 +1,62 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { familyService } from '@/lib/services';
 import type { Family, FamilyMember } from '@/lib/types';
 import { useAuth } from '@/lib/auth';
+import { useQuery } from '@tanstack/react-query';
 
 interface FamilyWithMembers extends Family {
   members?: (FamilyMember & { user: { email: string } })[];
 }
 
 interface FamilyContextType {
-  currentFamily: FamilyWithMembers | null;
-  setCurrentFamily: (family: Family | null) => void;
+  currentFamily: FamilyWithMembers | null | undefined;
+  setCurrentFamily: (family: Family | null | undefined) => void;
   families: Family[];
-  refreshFamilies: () => Promise<void>;
   isLoading: boolean;
   isAdmin: (familyId: string) => boolean;
+  refreshFamilies: () => Promise<void>;
 }
 
 const FamilyContext = createContext<FamilyContextType | undefined>(undefined);
 
 export function FamilyProvider({ children }: { children: React.ReactNode }) {
-  const [currentFamily, setCurrentFamily] = useState<FamilyWithMembers | null>(null);
-  const [families, setFamilies] = useState<Family[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [currentFamily, setCurrentFamily] = useState<FamilyWithMembers | null | undefined>(undefined);
   const { user } = useAuth();
 
-  const loadFamilyMembers = async (family: Family): Promise<FamilyWithMembers> => {
-    try {
-      const members = await familyService.getFamilyMembers(family.id);
-      return {
-        ...family,
-        members
-      };
-    } catch (error) {
-      console.error('Error fetching family members:', error);
-      return family;
-    }
-  };
-
-  const refreshFamilies = async () => {
-    try {
-      const fetchedFamilies = await familyService.getFamilies();
-      setFamilies(fetchedFamilies);
-      
-      // If no current family is selected and we have families, select the first one
-      if (!currentFamily && fetchedFamilies.length > 0) {
-        const familyWithMembers = await loadFamilyMembers(fetchedFamilies[0]);
-        setCurrentFamily(familyWithMembers);
+  // Query for families
+  const { data: families = [], isLoading, refetch: refreshFamilies } = useQuery({
+    queryKey: ['families'],
+    queryFn: familyService.getFamilies,
+    onSuccess: (fetchedFamilies) => {
+      if (fetchedFamilies.length === 0) {
+        setCurrentFamily(null);
+      } else if (!currentFamily && fetchedFamilies.length > 0) {
+        setCurrentFamily(fetchedFamilies[0]);
       } else if (currentFamily) {
-        // Refresh current family members
-        const familyWithMembers = await loadFamilyMembers(currentFamily);
-        setCurrentFamily(familyWithMembers);
+        const familyStillExists = fetchedFamilies.some(f => f.id === currentFamily.id);
+        if (!familyStillExists) {
+          setCurrentFamily(fetchedFamilies.length > 0 ? fetchedFamilies[0] : null);
+        }
       }
-    } catch (error) {
-      console.error('Error fetching families:', error);
     }
-  };
+  });
 
-  // Update current family when it changes
-  const handleSetCurrentFamily = async (family: Family | null) => {
-    if (family) {
-      const familyWithMembers = await loadFamilyMembers(family);
-      setCurrentFamily(familyWithMembers);
-    } else {
-      setCurrentFamily(null);
+  // Query for current family members if a family is selected
+  const { data: currentFamilyMembers } = useQuery({
+    queryKey: ['familyMembers', currentFamily?.id],
+    queryFn: () => currentFamily ? familyService.getFamilyMembers(currentFamily.id) : Promise.resolve([]),
+    enabled: !!currentFamily,
+  });
+
+  // Update current family with members when they change
+  React.useEffect(() => {
+    if (currentFamily && currentFamilyMembers) {
+      setCurrentFamily({
+        ...currentFamily,
+        members: currentFamilyMembers
+      });
     }
-  };
+  }, [currentFamilyMembers, currentFamily]);
 
   const isAdmin = (familyId: string): boolean => {
     if (!user || !currentFamily || currentFamily.id !== familyId) return false;
@@ -72,23 +64,15 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
     return member?.role === 'admin';
   };
 
-  useEffect(() => {
-    const loadFamilies = async () => {
-      await refreshFamilies();
-      setIsLoading(false);
-    };
-    loadFamilies();
-  }, []);
-
   return (
     <FamilyContext.Provider
       value={{
         currentFamily,
-        setCurrentFamily: handleSetCurrentFamily,
+        setCurrentFamily,
         families,
-        refreshFamilies,
         isLoading,
-        isAdmin
+        isAdmin,
+        refreshFamilies
       }}
     >
       {children}
@@ -96,10 +80,10 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function useFamily() {
+export const useFamily = () => {
   const context = useContext(FamilyContext);
   if (context === undefined) {
     throw new Error('useFamily must be used within a FamilyProvider');
   }
   return context;
-} 
+}; 

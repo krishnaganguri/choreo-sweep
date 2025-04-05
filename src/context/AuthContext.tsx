@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
@@ -79,28 +78,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, username: string) => {
     try {
       setLoading(true);
-      const { error, data } = await supabase.auth.signUp({ 
+      
+      // First check if user already exists
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .single();
+
+      if (existingUser) {
+        throw new Error('This email is already registered');
+      }
+
+      // Sign up the user
+      const { error: signUpError, data } = await supabase.auth.signUp({ 
         email, 
         password,
         options: {
           data: {
             username,
           },
-          emailRedirectTo: window.location.origin + '/login'
+          emailRedirectTo: `${window.location.origin}/login`
         }
       });
       
-      if (error) {
-        throw error;
-      }
+      if (signUpError) throw signUpError;
       
       if (data.user) {
         // Create a profile record
-        await supabase.from('profiles').insert([
-          { id: data.user.id, username, created_at: new Date().toISOString() }
-        ]);
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([
+            { 
+              id: data.user.id, 
+              email,
+              username, 
+              created_at: new Date().toISOString() 
+            }
+          ]);
         
-        // Use sonner toast for better visual feedback
+        if (profileError) {
+          console.error('Error creating profile:', profileError);
+          // Delete the auth user if profile creation fails
+          await supabase.auth.admin.deleteUser(data.user.id);
+          throw new Error('Failed to create profile. Please try again.');
+        }
+        
         toast.success("Account created", {
           description: "Please check your email to verify your account.",
           duration: 5000
@@ -109,9 +132,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         navigate('/login');
       }
     } catch (error: any) {
+      console.error('Sign up error:', error);
       toast.error("Sign up failed", {
         description: error.message,
       });
+      throw error;
     } finally {
       setLoading(false);
     }

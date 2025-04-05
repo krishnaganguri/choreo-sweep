@@ -21,7 +21,7 @@ export interface FamilyMember {
 
 export interface GroceryItem {
   id: number;
-  name: string;
+  title: string;
   quantity: string;
   category: string;
   completed: boolean;

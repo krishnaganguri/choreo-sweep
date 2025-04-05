@@ -5,9 +5,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectSeparator,
 } from '@/components/ui/select';
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, User, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -44,23 +45,52 @@ export function FamilySelector() {
     }
   };
 
-  if (families.length === 0) {
-    return null;
-  }
-
   return (
     <div className="flex items-center gap-2">
       <Select
-        value={currentFamily?.id || ""}
+        value={currentFamily === undefined ? "all" : currentFamily === null ? "personal" : currentFamily.id}
         onValueChange={(value) => {
-          const family = families.find(f => f.id === value);
-          if (family) setCurrentFamily(family);
+          if (value === "personal") {
+            setCurrentFamily(null);
+          } else if (value === "all") {
+            setCurrentFamily(undefined);
+          } else {
+            const family = families.find(f => f.id === value);
+            if (family) setCurrentFamily(family);
+          }
         }}
       >
-        <SelectTrigger className="w-[200px]">
-          <SelectValue placeholder="Select a family" />
+        <SelectTrigger className="w-[120px] sm:w-[200px]">
+          <SelectValue placeholder="Select view">
+            {currentFamily === undefined ? (
+              <span className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                <span className="truncate">All Families</span>
+              </span>
+            ) : currentFamily === null ? (
+              <span className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                <span className="truncate">Personal Items</span>
+              </span>
+            ) : (
+              <span className="truncate">{currentFamily.name}</span>
+            )}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
+          <SelectItem value="all">
+            <span className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              <span>All Families</span>
+            </span>
+          </SelectItem>
+          <SelectItem value="personal">
+            <span className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              <span>Personal Items</span>
+            </span>
+          </SelectItem>
+          {families.length > 0 && <SelectSeparator />}
           {families.map((family) => (
             <SelectItem key={family.id} value={family.id}>
               {family.name}
@@ -81,27 +111,17 @@ export function FamilySelector() {
           </DialogHeader>
           <form onSubmit={handleCreateFamily} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="familyName">Family Name</Label>
+              <Label htmlFor="name">Family Name</Label>
               <Input
-                id="familyName"
+                id="name"
                 value={newFamilyName}
                 onChange={(e) => setNewFamilyName(e.target.value)}
                 placeholder="Enter family name"
-                required
               />
             </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowCreateForm(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit">
-                Create
-              </Button>
-            </div>
+            <Button type="submit" className="w-full">
+              Create Family
+            </Button>
           </form>
         </DialogContent>
       </Dialog>

@@ -6,12 +6,12 @@ import { NotificationService } from './notifications';
 export const getCurrentUserId = async () => {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) {
-    throw new Error('User not authenticated');
+    return null;
   }
   return session.user.id;
 };
 
-interface FamilyResponse {
+interface FamilyMemberWithFamily {
   family: {
     id: string;
     name: string;
@@ -25,6 +25,8 @@ export const familyService = {
   async getCurrentFamily() {
     try {
       const userId = await getCurrentUserId();
+      if (!userId) return null;
+
       const { data, error } = await supabase
         .from('family_members')
         .select(`
@@ -56,17 +58,20 @@ export const familyService = {
   async getFamilies() {
     try {
       const userId = await getCurrentUserId();
+      if (!userId) return [];
+
       const { data, error } = await supabase
         .from('family_members')
         .select(`
-          family:families (
+          *,
+          families:families (
             id,
             name,
             created_at,
             created_by
           )
         `)
-        .eq('user_id', userId.toString())
+        .eq('user_id', userId)
         .eq('is_verified', true);
 
       if (error) {
@@ -78,22 +83,21 @@ export const familyService = {
         return [];
       }
 
-      // Safely transform the data
-      return data
-        .map(item => item.family)
-        .filter((family: unknown): family is Family => 
-          family !== null &&
-          typeof family === 'object' &&
-          family !== null &&
-          'id' in family &&
-          'name' in family &&
-          'created_at' in family &&
-          'created_by' in family &&
-          typeof family.id === 'string' &&
-          typeof family.name === 'string' &&
-          typeof family.created_at === 'string' &&
-          typeof family.created_by === 'string'
-        );
+      // Filter out null families and deduplicate by family ID
+      const uniqueFamilies = new Map<string, Family>();
+      data.forEach(item => {
+        if (item.families && typeof item.families === 'object' && 'id' in item.families) {
+          uniqueFamilies.set(item.families.id, {
+            id: item.families.id,
+            name: item.families.name,
+            created_at: item.families.created_at,
+            created_by: item.families.created_by
+          });
+        }
+      });
+
+      // Convert to array and sort by name
+      return Array.from(uniqueFamilies.values()).sort((a, b) => a.name.localeCompare(b.name));
     } catch (error) {
       console.error('Error in getFamilies:', error);
       return [];
@@ -103,8 +107,11 @@ export const familyService = {
   async createFamily(name: string) {
     try {
       const userId = await getCurrentUserId();
+      if (!userId) throw new Error('User not authenticated');
+
       const { data: userData } = await supabase.auth.getUser();
       
+      // Create the family
       const { data: familyData, error: familyError } = await supabase
         .from('families')
         .insert([{
@@ -119,31 +126,36 @@ export const familyService = {
         throw familyError;
       }
 
+      if (!familyData) {
+        throw new Error('Failed to create family');
+      }
+
       // Add creator as admin
       const { error: memberError } = await supabase
         .from('family_members')
         .insert([{
           family_id: familyData.id,
-          user_id: userId.toString(),
+          user_id: userId,
           role: 'admin',
-          display_name: userData.user.email?.split('@')[0] || 'Admin',
-          is_verified: true
+          display_name: userData.user?.email?.split('@')[0] || 'Admin',
+          is_verified: true,
+          joined_at: new Date().toISOString()
         }]);
 
       if (memberError) {
         console.error('Error adding family member:', memberError);
+        // Clean up the created family if member creation fails
+        await supabase.from('families').delete().eq('id', familyData.id);
         throw memberError;
       }
 
-      // Ensure we return a properly typed Family object
-      const family: Family = {
+      // Return a properly typed Family object
+      return {
         id: familyData.id,
         name: familyData.name,
         created_at: familyData.created_at,
         created_by: familyData.created_by
-      };
-
-      return family;
+      } as Family;
     } catch (error) {
       console.error('Error in createFamily:', error);
       throw error;
@@ -194,12 +206,11 @@ export const familyService = {
         return [];
       }
 
-      // Transform the data to include user info
       return familyMembers.map(member => ({
         ...member,
         user: {
           id: member.user_id,
-          email: member.display_name // Use display_name as fallback since we don't have email
+          email: member.display_name
         }
       })) as (FamilyMember & { user: { id: string; email: string } })[];
     } catch (error) {
@@ -358,32 +369,118 @@ export const familyService = {
       throw error;
     }
   },
+
+  async updateFamily(familyId: string, name: string) {
+    try {
+      const userId = await getCurrentUserId();
+      if (!userId) throw new Error('User not authenticated');
+
+      // Verify user is admin of the family
+      const { data: membership } = await supabase
+        .from('family_members')
+        .select('role')
+        .eq('family_id', familyId)
+        .eq('user_id', userId)
+        .eq('is_verified', true)
+        .single();
+
+      if (!membership || membership.role !== 'admin') {
+        throw new Error('Unauthorized: Only admins can update family details');
+      }
+
+      const { data, error } = await supabase
+        .from('families')
+        .update({ name })
+        .eq('id', familyId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as Family;
+    } catch (error) {
+      console.error('Error in updateFamily:', error);
+      throw error;
+    }
+  },
+
+  async deleteFamily(familyId: string) {
+    try {
+      const userId = await getCurrentUserId();
+      if (!userId) throw new Error('User not authenticated');
+
+      // Verify user is admin of the family
+      const { data: membership } = await supabase
+        .from('family_members')
+        .select('role')
+        .eq('family_id', familyId)
+        .eq('user_id', userId)
+        .eq('is_verified', true)
+        .single();
+
+      if (!membership || membership.role !== 'admin') {
+        throw new Error('Unauthorized: Only admins can delete families');
+      }
+
+      // First delete all family members
+      const { error: membersError } = await supabase
+        .from('family_members')
+        .delete()
+        .eq('family_id', familyId);
+
+      if (membersError) {
+        console.error('Error deleting family members:', membersError);
+        throw membersError;
+      }
+
+      // Then delete the family
+      const { error: familyError } = await supabase
+        .from('families')
+        .delete()
+        .eq('id', familyId);
+
+      if (familyError) {
+        console.error('Error deleting family:', familyError);
+        throw familyError;
+      }
+    } catch (error) {
+      console.error('Error in deleteFamily:', error);
+      throw error;
+    }
+  },
 };
 
 // Chores service
 export const choresService = {
-  async getChores() {
+  async getChores(currentFamily?: { id: string } | null) {
     try {
       const userId = await getCurrentUserId();
-      const family = await familyService.getCurrentFamily();
-
-      let filter = `user_id.eq.${userId}`;
-      if (family && typeof family === 'object' && 'id' in family) {
-        filter = `user_id.eq.${userId},or(family_id.eq.${family.id},is_personal.eq.false)`;
-      }
-
-      const { data, error } = await supabase
+      if (!userId) return [];
+      
+      let query = supabase
         .from('chores')
         .select('*')
-        .or(filter)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
+
+      if (currentFamily === undefined) {
+        // All Families view: Show only family chores (no personal chores)
+        query = query.eq('is_personal', false);
+      } else if (currentFamily === null) {
+        // Personal view: Only show personal chores
+        query = query.eq('is_personal', true);
+      } else {
+        // Specific family view: Show only family chores for this family
+        query = query.eq('family_id', currentFamily.id).eq('is_personal', false);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching chores:', error);
         return [];
       }
 
-      return data as Chore[];
+      return data || [];
     } catch (error) {
       console.error('Error in getChores:', error);
       return [];
@@ -393,6 +490,26 @@ export const choresService = {
   async addChore(chore: Omit<Chore, 'id' | 'created_at' | 'user_id'>) {
     try {
       const userId = await getCurrentUserId();
+      if (!userId) throw new Error('User not authenticated');
+
+      // If assigned_to is provided and it's a UUID, keep it as is
+      // If it's an email, we need to check if the user exists
+      let assignedToValue = chore.assigned_to;
+      if (assignedToValue) {
+        // Try to find the user by email if assigned_to looks like an email
+        if (assignedToValue.includes('@')) {
+          const { data: userData } = await supabase
+            .from('family_members')
+            .select('user_id')
+            .eq('family_id', chore.family_id)
+            .eq('user_id', assignedToValue)
+            .single();
+          
+          if (userData) {
+            assignedToValue = userData.user_id;
+          }
+        }
+      }
 
       const { data, error } = await supabase
         .from('chores')
@@ -402,7 +519,7 @@ export const choresService = {
           due_date: chore.due_date,
           priority: chore.priority || 'medium',
           status: chore.status || 'pending',
-          assigned_to: chore.assigned_to,
+          assigned_to: assignedToValue,
           family_id: chore.family_id,
           is_personal: chore.is_personal,
           user_id: userId
@@ -503,27 +620,47 @@ export const choresService = {
 
 // Groceries service
 export const groceriesService = {
-  async getGroceryItems() {
+  async getGroceryItems(currentFamilyId?: string | null) {
     try {
       const userId = await getCurrentUserId();
-      const family = await familyService.getCurrentFamily();
-
-      let filter = `user_id.eq.${userId}`;
-      if (family && typeof family === 'object' && 'id' in family) {
-        filter = `user_id.eq.${userId},family_id.eq.${family.id}`;
-      }
-
-      const { data, error } = await supabase
+      if (!userId) return [];
+      
+      let query = supabase
         .from('grocery_items')
         .select('*')
-        .or(filter)
         .order('created_at', { ascending: false });
+
+      if (currentFamilyId === undefined) {
+        // All Families view: Show only family items (no personal items)
+        const { data: familyMemberships } = await supabase
+          .from('family_members')
+          .select('family_id')
+          .eq('user_id', userId)
+          .eq('is_verified', true);
+
+        const familyIds = familyMemberships?.map(fm => fm.family_id) || [];
+        
+        if (familyIds.length > 0) {
+          query = query.in('family_id', familyIds).eq('is_personal', false);
+        } else {
+          return [];
+        }
+      } else if (currentFamilyId === null) {
+        // Personal view: Only show personal items
+        query = query.eq('user_id', userId).eq('is_personal', true);
+      } else {
+        // Specific family view: Show only family items for this family
+        query = query.eq('family_id', currentFamilyId).eq('is_personal', false);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching grocery items:', error);
         return [];
       }
-      return data as GroceryItem[];
+
+      return data || [];
     } catch (error) {
       console.error('Error in getGroceryItems:', error);
       return [];
@@ -531,7 +668,7 @@ export const groceriesService = {
   },
 
   async addGroceryItem(item: {
-    name: string;
+    title: string;
     quantity?: string;
     category?: string;
     completed?: boolean;
@@ -543,11 +680,12 @@ export const groceriesService = {
       const { data, error } = await supabase
         .from('grocery_items')
         .insert([{
-          name: item.name,
+          title: item.title,
           quantity: item.quantity || "1",
           category: item.category || "other",
           completed: item.completed || false,
           user_id: userId,
+          added_by: userId,
           is_personal: item.is_personal,
           family_id: item.family_id
         }])
@@ -566,7 +704,7 @@ export const groceriesService = {
   },
 
   async updateGroceryItem(id: number, updates: Partial<{
-    name: string;
+    title: string;
     quantity: string;
     category: string;
     completed: boolean;
@@ -608,27 +746,47 @@ export const groceriesService = {
 
 // Expenses service
 export const expensesService = {
-  async getExpenses() {
+  async getExpenses(currentFamilyId?: string | null) {
     try {
       const userId = await getCurrentUserId();
-      const family = await familyService.getCurrentFamily();
-
-      let filter = `user_id.eq.${userId}`;
-      if (family && typeof family === 'object' && 'id' in family) {
-        filter = `user_id.eq.${userId},or(family_id.eq.${family.id},is_personal.eq.false)`;
-      }
-
-      const { data, error } = await supabase
+      if (!userId) return [];
+      
+      let query = supabase
         .from('expenses')
         .select('*')
-        .or(filter)
         .order('created_at', { ascending: false });
+
+      if (currentFamilyId === undefined) {
+        // All Families view: Show only family expenses (no personal expenses)
+        const { data: familyMemberships } = await supabase
+          .from('family_members')
+          .select('family_id')
+          .eq('user_id', userId)
+          .eq('is_verified', true);
+
+        const familyIds = familyMemberships?.map(fm => fm.family_id) || [];
+        
+        if (familyIds.length > 0) {
+          query = query.in('family_id', familyIds).eq('is_personal', false);
+        } else {
+          return [];
+        }
+      } else if (currentFamilyId === null) {
+        // Personal view: Only show personal expenses
+        query = query.eq('user_id', userId).eq('is_personal', true);
+      } else {
+        // Specific family view: Show only family expenses for this family
+        query = query.eq('family_id', currentFamilyId).eq('is_personal', false);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching expenses:', error);
         return [];
       }
-      return data as Expense[];
+
+      return data || [];
     } catch (error) {
       console.error('Error in getExpenses:', error);
       return [];
@@ -636,66 +794,149 @@ export const expensesService = {
   },
 
   async addExpense(expense: Omit<Expense, 'id' | 'created_at' | 'user_id'>) {
-    const userId = await getCurrentUserId();
-    const { data, error } = await supabase
-      .from('expenses')
-      .insert([{ ...expense, user_id: userId }])
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data as Expense;
+    try {
+      const userId = await getCurrentUserId();
+
+      // If it's a family expense, verify family membership
+      if (expense.family_id) {
+        const { data: membership } = await supabase
+          .from('family_members')
+          .select('is_verified')
+          .eq('family_id', expense.family_id)
+          .eq('user_id', userId)
+          .eq('is_verified', true)
+          .single();
+
+        if (!membership) {
+          throw new Error('Unauthorized: Not a verified member of this family');
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('expenses')
+        .insert([{ ...expense, user_id: userId }])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data as Expense;
+    } catch (error) {
+      console.error('Error in addExpense:', error);
+      throw error;
+    }
   },
 
   async updateExpense(id: number, updates: Partial<Expense>) {
-    const userId = await getCurrentUserId();
-    const { data, error } = await supabase
-      .from('expenses')
-      .update(updates)
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select()
-      .single();
-    
-    if (error) throw error;
-    return data as Expense;
+    try {
+      const userId = await getCurrentUserId();
+
+      // If updating family_id, verify membership
+      if (updates.family_id) {
+        const { data: membership } = await supabase
+          .from('family_members')
+          .select('is_verified')
+          .eq('family_id', updates.family_id)
+          .eq('user_id', userId)
+          .eq('is_verified', true)
+          .single();
+
+        if (!membership) {
+          throw new Error('Unauthorized: Not a verified member of this family');
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('expenses')
+        .update(updates)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data as Expense;
+    } catch (error) {
+      console.error('Error in updateExpense:', error);
+      throw error;
+    }
   },
 
   async deleteExpense(id: number) {
-    const userId = await getCurrentUserId();
-    const { error } = await supabase
-      .from('expenses')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
-    
-    if (error) throw error;
+    try {
+      const userId = await getCurrentUserId();
+
+      // Verify ownership before deletion
+      const { data: expense } = await supabase
+        .from('expenses')
+        .select('user_id, family_id')
+        .eq('id', id)
+        .single();
+
+      if (!expense) {
+        throw new Error('Expense not found');
+      }
+
+      if (expense.user_id !== userId) {
+        throw new Error('Unauthorized: Cannot delete expense created by another user');
+      }
+
+      const { error } = await supabase
+        .from('expenses')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error in deleteExpense:', error);
+      throw error;
+    }
   }
 };
 
 // Reminders service
 export const remindersService = {
-  async getReminders() {
+  async getReminders(currentFamilyId?: string | null) {
     try {
       const userId = await getCurrentUserId();
-      const family = await familyService.getCurrentFamily();
-
-      let filter = `user_id.eq.${userId}`;
-      if (family && typeof family === 'object' && 'id' in family) {
-        filter = `user_id.eq.${userId},or(family_id.eq.${family.id},is_personal.eq.false)`;
-      }
-
-      const { data, error } = await supabase
+      if (!userId) return [];
+      
+      let query = supabase
         .from('reminders')
         .select('*')
-        .or(filter)
         .order('created_at', { ascending: false });
+
+      if (currentFamilyId === undefined) {
+        // All Families view: Show only family reminders (no personal reminders)
+        const { data: familyMemberships } = await supabase
+          .from('family_members')
+          .select('family_id')
+          .eq('user_id', userId)
+          .eq('is_verified', true);
+
+        const familyIds = familyMemberships?.map(fm => fm.family_id) || [];
+        
+        if (familyIds.length > 0) {
+          query = query.in('family_id', familyIds).eq('is_personal', false);
+        } else {
+          return [];
+        }
+      } else if (currentFamilyId === null) {
+        // Personal view: Only show personal reminders
+        query = query.eq('user_id', userId).eq('is_personal', true);
+      } else {
+        // Specific family view: Show only family reminders for this family
+        query = query.eq('family_id', currentFamilyId).eq('is_personal', false);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching reminders:', error);
         return [];
       }
-      return data as Reminder[];
+
+      return data || [];
     } catch (error) {
       console.error('Error in getReminders:', error);
       return [];
@@ -703,48 +944,111 @@ export const remindersService = {
   },
 
   async addReminder(reminder: Omit<Reminder, 'id' | 'created_at' | 'user_id'>) {
-    const userId = await getCurrentUserId();
-    const { data, error } = await supabase
-      .from('reminders')
-      .insert([{ ...reminder, user_id: userId }])
-      .select()
-      .single();
-    
-    if (error) throw error;
+    try {
+      const userId = await getCurrentUserId();
 
-    // Schedule notification for the new reminder
-    await remindersService.scheduleReminderNotification(data);
+      // If it's a family reminder, verify family membership
+      if (reminder.family_id) {
+        const { data: membership } = await supabase
+          .from('family_members')
+          .select('is_verified')
+          .eq('family_id', reminder.family_id)
+          .eq('user_id', userId)
+          .eq('is_verified', true)
+          .single();
 
-    return data as Reminder;
+        if (!membership) {
+          throw new Error('Unauthorized: Not a verified member of this family');
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('reminders')
+        .insert([{ ...reminder, user_id: userId }])
+        .select()
+        .single();
+      
+      if (error) throw error;
+
+      // Schedule notification for the new reminder
+      await remindersService.scheduleReminderNotification(data);
+
+      return data as Reminder;
+    } catch (error) {
+      console.error('Error in addReminder:', error);
+      throw error;
+    }
   },
 
   async updateReminder(id: number, updates: Partial<Reminder>) {
-    const userId = await getCurrentUserId();
-    const { data, error } = await supabase
-      .from('reminders')
-      .update(updates)
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select()
-      .single();
-    
-    if (error) throw error;
+    try {
+      const userId = await getCurrentUserId();
 
-    // Reschedule notification for the updated reminder
-    await remindersService.scheduleReminderNotification(data);
+      // If updating family_id, verify membership
+      if (updates.family_id) {
+        const { data: membership } = await supabase
+          .from('family_members')
+          .select('is_verified')
+          .eq('family_id', updates.family_id)
+          .eq('user_id', userId)
+          .eq('is_verified', true)
+          .single();
 
-    return data as Reminder;
+        if (!membership) {
+          throw new Error('Unauthorized: Not a verified member of this family');
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('reminders')
+        .update(updates)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+
+      // Reschedule notification for the updated reminder
+      await remindersService.scheduleReminderNotification(data);
+
+      return data as Reminder;
+    } catch (error) {
+      console.error('Error in updateReminder:', error);
+      throw error;
+    }
   },
 
   async deleteReminder(id: number) {
-    const userId = await getCurrentUserId();
-    const { error } = await supabase
-      .from('reminders')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
-    
-    if (error) throw error;
+    try {
+      const userId = await getCurrentUserId();
+
+      // Verify ownership before deletion
+      const { data: reminder } = await supabase
+        .from('reminders')
+        .select('user_id, family_id')
+        .eq('id', id)
+        .single();
+
+      if (!reminder) {
+        throw new Error('Reminder not found');
+      }
+
+      if (reminder.user_id !== userId) {
+        throw new Error('Unauthorized: Cannot delete reminder created by another user');
+      }
+
+      const { error } = await supabase
+        .from('reminders')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error in deleteReminder:', error);
+      throw error;
+    }
   },
 
   scheduleReminderNotification: async (reminder: Reminder) => {
