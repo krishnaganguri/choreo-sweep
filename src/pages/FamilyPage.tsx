@@ -53,10 +53,10 @@ export const FamilyPage = () => {
   const queryClient = useQueryClient();
 
   // Query for family members
-  const { data: members = [] } = useQuery<Member[]>({
+  const { data: members = [], isLoading: isLoadingMembers } = useQuery<Member[]>({
     queryKey: ['familyMembers', family?.id],
-    queryFn: () => family ? familyService.getFamilyMembers(family.id) : [],
-    enabled: !!family,
+    queryFn: () => family?.id ? familyService.getFamilyMembers(family.id) : [],
+    enabled: !!family?.id,
   });
 
   // Mutations
@@ -166,7 +166,7 @@ export const FamilyPage = () => {
 
   const availableFeatures = ['chores', 'groceries', 'expenses', 'reminders'];
 
-  if (!family) {
+  if (!family && !isLoadingMembers) {
     return (
       <div className="container mx-auto py-6">
         <h1 className="text-2xl font-bold mb-6">Family Management</h1>
@@ -250,66 +250,72 @@ export const FamilyPage = () => {
           )}
         </CardHeader>
         <CardContent className="space-y-4">
-          {members.map((member) => (
-            <Card key={member.user_id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-              <div className="flex-1">
-                <p className="font-semibold">{member.display_name}</p>
-                <p className="text-sm text-muted-foreground">{member.profile?.email}</p>
-                <p className="text-xs text-muted-foreground">Role: {member.role}</p>
-              </div>
-              {isAdmin && member.role !== 'admin' && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium mb-2">Feature Access:</p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    {availableFeatures.map((feature) => (
-                      <div key={feature} className="flex items-center space-x-2">
-                        <Switch
-                          id={`${member.user_id}-${feature}`}
-                          checked={member.features_allowed?.includes(feature)}
-                          onCheckedChange={(checked) =>
-                            handleUpdateFeatureAccess(member.user_id, feature, checked)
-                          }
-                        />
-                        <Label htmlFor={`${member.user_id}-${feature}`} className="capitalize">
-                          {feature}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
+          {isLoadingMembers ? (
+            <div className="text-center text-muted-foreground p-6">Loading members...</div>
+          ) : members.length === 0 ? (
+            <div className="text-center text-muted-foreground p-6">No members found in this family yet.</div>
+          ) : (
+            members.map((member) => (
+              <Card key={member.user_id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div className="flex-1">
+                  <p className="font-semibold">{member.display_name}</p>
+                  <p className="text-sm text-muted-foreground">{member.profile?.email}</p>
+                  <p className="text-xs text-muted-foreground">Role: {member.role}</p>
                 </div>
-              )}
-              {isAdmin && member.role !== 'admin' && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm">Remove</Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. This will permanently remove 
-                        <span className="font-semibold"> {member.display_name} </span> 
-                        from the family.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction 
-                         className="bg-destructive hover:bg-destructive/90"
-                         onClick={() => {
-                           if (family) { 
-                              removeMemberMutation.mutate({ familyId: family.id, userId: member.user_id })
-                           }
-                         }}
-                      >
-                        Confirm Remove
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-            </Card>
-          ))}
+                {isAdmin && member.role !== 'admin' && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium mb-2">Feature Access:</p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                      {availableFeatures.map((feature) => (
+                        <div key={feature} className="flex items-center space-x-2">
+                          <Switch
+                            id={`${member.user_id}-${feature}`}
+                            checked={member.features_allowed?.includes(feature)}
+                            onCheckedChange={(checked) =>
+                              handleUpdateFeatureAccess(member.user_id, feature, checked)
+                            }
+                          />
+                          <Label htmlFor={`${member.user_id}-${feature}`} className="capitalize">
+                            {feature}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {isAdmin && member.role !== 'admin' && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm">Remove</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently remove 
+                          <span className="font-semibold"> {member.display_name} </span> 
+                          from the family.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction 
+                           className="bg-destructive hover:bg-destructive/90"
+                           onClick={() => {
+                             if (family) { 
+                                removeMemberMutation.mutate({ familyId: family.id, userId: member.user_id })
+                             }
+                           }}
+                        >
+                          Confirm Remove
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </Card>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>
