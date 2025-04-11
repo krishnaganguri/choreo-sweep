@@ -15,28 +15,33 @@ interface FamilyContextType {
 const FamilyContext = createContext<FamilyContextType | undefined>(undefined);
 
 export function FamilyProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const queryClient = useQueryClient();
 
-  // Query for user's family
-  const { data: family = null, isLoading } = useQuery({
-    queryKey: ['family'],
+  // Query for user's family - depends on user ID
+  const { data: family = null, isLoading: isFamilyLoading } = useQuery({
+    queryKey: ['family', user?.id],
     queryFn: familyService.getUserFamily,
+    enabled: !!user,
   });
 
   // Query for family members if a family exists
-  const { data: members = [] } = useQuery({
+  const { data: members = [], isLoading: areMembersLoading } = useQuery({
     queryKey: ['familyMembers', family?.id],
-    queryFn: () => family ? familyService.getFamilyMembers(family.id) : Promise.resolve([]),
-    enabled: !!family,
+    queryFn: () => family?.id ? familyService.getFamilyMembers(family.id) : Promise.resolve([]),
+    enabled: !!family?.id && !isFamilyLoading,
   });
 
-  const isAdmin = !!user && !!family && members.some(m => 
+  // Combine loading states
+  const isLoading = isAuthLoading || isFamilyLoading || (!!family && areMembersLoading);
+
+  // isAdmin should also check if members are still loading
+  const isAdmin = !isLoading && !!user && !!family && members.some(m => 
     m.user_id === user.id.toString() && m.role === 'admin'
   );
 
   const hasFeatureAccess = (feature: string): boolean => {
-    if (!user || !family) return false;
+    if (isLoading || !user || !family) return false;
     const member = members.find(m => m.user_id === user.id.toString());
     if (!member) return false;
     if (member.role === 'admin') return true;
@@ -44,7 +49,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshFamily = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['family'] });
+    await queryClient.invalidateQueries({ queryKey: ['family', user?.id] });
     if (family?.id) {
       await queryClient.invalidateQueries({ queryKey: ['familyMembers', family.id] });
     }
