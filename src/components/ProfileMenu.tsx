@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/hooks/useAuth";
 import { User, Settings, LogOut, HelpCircle, Mail, Shield, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "./ui/use-toast";

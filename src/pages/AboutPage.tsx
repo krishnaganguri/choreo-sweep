@@ -7,71 +7,74 @@ export default function AboutPage() {
   const features = [
     {
       title: 'Dashboard',
-      description: 'Get a quick overview of all your household activities, upcoming tasks, and family updates.',
+      description: 'Get a quick overview of all your household activities. Toggle between All, Personal, and Family views.',
       guides: [
-        'View all your active tasks and reminders at a glance',
-        'Quick access to all main features',
-        'See family activity updates',
+        'View counts of pending chores, needed groceries, expenses, and active reminders',
+        'Toggle between All, Personal, and Family views using the tabs',
+        'Quickly navigate to each feature section by clicking the cards',
       ]
     },
     {
       title: 'Chores Management',
-      description: 'Organize and track household tasks efficiently.',
+      description: 'Organize and track household tasks for your family.',
       guides: [
         'Create new chores with titles, descriptions, and due dates',
-        'Assign priorities (low, medium, high)',
+        'Assign chores to specific family members (or yourself)',
+        'Set chores as recurring (daily, weekly, monthly)',
         'Mark chores as complete when finished',
-        'Receive notifications for upcoming deadlines',
+        'Admins can delete completed chores',
       ]
     },
     {
-      title: 'Grocery Lists',
-      description: 'Keep track of shopping needs and manage grocery lists.',
+      title: 'Grocery List',
+      description: 'Keep track of shopping needs for yourself or the family.',
       guides: [
-        'Create multiple shopping lists',
-        'Add items with quantities and notes',
-        'Mark items as purchased',
-        'Share lists with family members',
+        'Add items with names and quantities',
+        'Toggle items between Personal (only you see) and Family (shared)',
+        'Mark items as purchased by checking them off',
+        'Sort items by name',
+        'Delete items individually or clear all purchased items',
       ]
     },
     {
       title: 'Expense Tracking',
-      description: 'Monitor and manage household expenses.',
+      description: 'Monitor and manage household or personal expenses.',
       guides: [
-        'Record expenses with dates and categories',
-        'Track spending patterns',
-        'Categorize expenses for better organization',
-        'View expense history and summaries',
+        'Record expenses with titles, amounts, dates, and categories',
+        'Mark expenses as Personal or Family',
+        'Track payment status (paid/unpaid)',
+        'Sort expenses by date, amount, or category',
+        'Edit or delete expenses',
       ]
     },
     {
       title: 'Reminders',
-      description: 'Never miss important dates and tasks.',
+      description: 'Set personal or family reminders for important dates and tasks.',
       guides: [
-        'Set up reminders for important events',
-        'Choose notification preferences',
-        'Set priority levels for better organization',
-        'Receive notifications at scheduled times',
+        'Create reminders with titles, descriptions, due date/time, and priority (low, medium, high)',
+        'Switch between Personal and Family reminder views using tabs',
+        'In Family view, toggle reminders as Personal (visible only to you) or Family (shared)',
+        'Mark reminders as complete',
+        'Sort reminders by due date or priority',
+        'Receive browser notifications when reminders are due (if enabled)',
       ]
     },
     {
       title: 'Family Management',
-      description: 'Coordinate with family members effectively.',
+      description: 'Manage your family group and member access.',
       guides: [
-        'Create and manage family groups',
-        'Invite family members to join',
-        'Assign roles and permissions',
-        'Share tasks and responsibilities',
+        'View current family members and their roles (Admin/Member)',
+        'Admins can add new members by email (user must already have an account)',
+        'Admins can remove members (with confirmation)',
+        'Admins can enable/disable specific feature access (Chores, Groceries, etc.) for each member',
       ]
     },
     {
       title: 'Notifications',
-      description: 'Stay updated with important alerts and reminders.',
+      description: 'Stay updated with important alerts for chores and reminders.',
       guides: [
-        'Enable browser notifications for updates',
-        'Get alerts for upcoming tasks and deadlines',
-        'Receive family activity notifications',
-        'Customize notification preferences',
+        'Enable browser notifications in your settings (if prompted)',
+        'Get alerts when chores or reminders are due',
       ]
     },
   ];

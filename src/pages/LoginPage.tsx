@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/hooks/useAuth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const LoginPage = () => {
