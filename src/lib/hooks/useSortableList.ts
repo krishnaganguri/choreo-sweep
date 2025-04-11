@@ -1,86 +1,46 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 
-type SortOrder = 'asc' | 'desc';
-
-interface SortConfig<T extends string> {
-  sortBy: T;
-  sortOrder: SortOrder;
+export interface SortConfig<T extends string> {
+  key: T;
+  direction: 'asc' | 'desc';
 }
 
-export function useSortableList<T extends string>(
-  initialSortBy: T,
-  initialSortOrder: SortOrder = 'asc'
-) {
+export function useSortableList<T extends string>(defaultKey: T) {
   const [sortConfig, setSortConfig] = useState<SortConfig<T>>({
-    sortBy: initialSortBy,
-    sortOrder: initialSortOrder,
+    key: defaultKey,
+    direction: 'asc',
   });
 
-  const handleSort = useCallback((type: T) => {
+  const handleSort = (key: T) => {
     setSortConfig((prevConfig) => ({
-      sortBy: type,
-      sortOrder:
-        prevConfig.sortBy === type
-          ? prevConfig.sortOrder === 'asc'
-            ? 'desc'
-            : 'asc'
-          : 'asc',
+      key,
+      direction:
+        prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc',
     }));
-  }, []);
+  };
 
-  const getSortedItems = useCallback(<Item extends Record<string, any>>(
-    items: Item[],
-    completedField?: keyof Item,
-    customSortLogic?: (a: Item, b: Item, sortBy: T, sortOrder: SortOrder) => number
+  const getSortedItems = <TItem>(
+    items: TItem[],
+    defaultSortKey?: T,
+    compareFn?: (a: TItem, b: TItem, sortBy: T, sortOrder: 'asc' | 'desc') => number
   ) => {
+    const sortKey = defaultSortKey || sortConfig.key;
+    const sortOrder = sortConfig.direction;
+
     return [...items].sort((a, b) => {
-      // Handle completed items if completedField is provided
-      if (completedField) {
-        if (a[completedField] && !b[completedField]) return 1;
-        if (!a[completedField] && b[completedField]) return -1;
+      if (compareFn) {
+        return compareFn(a, b, sortKey, sortOrder);
       }
 
-      // Use custom sort logic if provided
-      if (customSortLogic) {
-        return customSortLogic(a, b, sortConfig.sortBy, sortConfig.sortOrder);
-      }
+      // Default comparison for objects with sortKey as property
+      const aValue = (a as any)[sortKey];
+      const bValue = (b as any)[sortKey];
 
-      // Default sorting logic
-      const aValue = a[sortConfig.sortBy];
-      const bValue = b[sortConfig.sortBy];
-
-      // Handle undefined or null values
-      if (aValue === undefined || aValue === null) return sortConfig.sortOrder === 'asc' ? 1 : -1;
-      if (bValue === undefined || bValue === null) return sortConfig.sortOrder === 'asc' ? -1 : 1;
-
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortConfig.sortOrder === 'asc'
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue);
-      }
-
-      // Check if values are dates by attempting to convert to timestamps
-      const aTime = new Date(aValue).getTime();
-      const bTime = new Date(bValue).getTime();
-      if (!isNaN(aTime) && !isNaN(bTime)) {
-        return sortConfig.sortOrder === 'asc'
-          ? aTime - bTime
-          : bTime - aTime;
-      }
-
-      if (typeof aValue === 'number' && typeof bValue === 'number') {
-        return sortConfig.sortOrder === 'asc'
-          ? aValue - bValue
-          : bValue - aValue;
-      }
-
+      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [sortConfig]);
-
-  return {
-    sortConfig,
-    handleSort,
-    getSortedItems,
   };
+
+  return { sortConfig, handleSort, getSortedItems };
 } 

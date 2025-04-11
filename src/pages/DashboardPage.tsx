@@ -1,13 +1,15 @@
-import React from "react";
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { ClipboardList, ShoppingCart, DollarSign, Bell, User, Users } from "lucide-react";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/hooks/useAuth";
 import { choresService, groceriesService, expensesService, remindersService } from "@/lib/services";
 import { useToast } from "@/components/ui/use-toast";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import { useQuery } from "@tanstack/react-query";
 import { useFamily } from "@/lib/hooks/useFamily";
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface DashboardStats {
   chores: number;
@@ -20,39 +22,50 @@ const DashboardPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { currentFamily } = useFamily();
+  const { family } = useFamily();
+  const [viewType, setViewType] = useState<'all' | 'personal' | 'family'>('all');
 
   // Get user's first name for greeting
   const firstName = user?.email ? user.email.split('@')[0] : 'there';
 
   // Get the appropriate view description
   const getViewDescription = () => {
-    if (currentFamily === undefined) {
-      return "Here's what's happening across all your families";
-    } else if (currentFamily === null) {
-      return "Here are your personal items";
-    } else {
-      return `Here's what's happening in ${currentFamily.name}`;
+    switch (viewType) {
+      case 'personal':
+        return "Here are your personal items";
+      case 'family':
+        return family ? `Here's what's happening in ${family.name}` : "No family items to show";
+      default:
+        return "Here's everything at a glance";
     }
   };
 
   // Query for fetching dashboard stats
   const { data: stats = { chores: 0, groceries: 0, expenses: 0, reminders: 0 }, isLoading } = useQuery({
-    queryKey: ['dashboardStats', currentFamily?.id ?? (currentFamily === null ? 'personal' : 'all')],
+    queryKey: ['dashboardStats', viewType, family?.id],
     queryFn: async () => {
       try {
+        let familyParam;
+        if (viewType === 'personal') {
+          familyParam = null;
+        } else if (viewType === 'family') {
+          familyParam = family;
+        } else {
+          familyParam = undefined;
+        }
+
         const [chores, groceries, expenses, reminders] = await Promise.all([
-          choresService.getChores(currentFamily),
-          groceriesService.getGroceryItems(currentFamily?.id),
-          expensesService.getExpenses(currentFamily?.id),
-          remindersService.getReminders(currentFamily?.id),
+          choresService.getChores(familyParam),
+          groceriesService.getGroceryItems(family?.id),
+          expensesService.getExpenses(family?.id),
+          remindersService.getReminders(family?.id),
         ]);
 
         return {
-          chores: chores.filter(c => !c.completed && c.status === 'pending').length,
-          groceries: groceries.filter(g => !g.completed).length,
-          expenses: expenses.filter(e => !e.is_completed).length,
-          reminders: reminders.filter(r => !r.completed && new Date(r.date) >= new Date()).length,
+          chores: chores.filter(c => !c.completed).length,
+          groceries: groceries.filter(g => !g.purchased).length,
+          expenses: expenses.length,
+          reminders: reminders.filter(r => !r.completed).length,
         };
       } catch (error) {
         console.error('Error fetching dashboard stats:', error);
@@ -65,9 +78,15 @@ const DashboardPage = () => {
       }
     },
     staleTime: 1000 * 30, // Consider data fresh for 30 seconds
-    refetchOnMount: true,
-    refetchOnWindowFocus: true,
   });
+
+  // Define colors for the cards
+  const cardColors = {
+    chores: "bg-blue-50 border-blue-200 hover:bg-blue-100",
+    groceries: "bg-green-50 border-green-200 hover:bg-green-100",
+    expenses: "bg-yellow-50 border-yellow-200 hover:bg-yellow-100",
+    reminders: "bg-purple-50 border-purple-200 hover:bg-purple-100",
+  };
 
   if (isLoading) {
     return (
@@ -117,25 +136,81 @@ const DashboardPage = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Welcome, {firstName}!</h1>
-        <p className="text-muted-foreground">
-          {getViewDescription()}
-        </p>
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold tracking-tight">Hi, {firstName}!</h1>
+        <p className="text-muted-foreground">{getViewDescription()}</p>
+      </div>
+
+      <div className="flex justify-center">
+        <Tabs 
+          value={viewType} 
+          onValueChange={(value) => setViewType(value as 'all' | 'personal' | 'family')} 
+          className="w-full max-w-md"
+        >
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="personal">Personal</TabsTrigger>
+            <TabsTrigger value="family">Family</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {dashboardItems.map((item) => (
-          <DashboardCard
-            key={item.title}
-            title={item.title}
-            description={item.description}
-            icon={item.icon}
-            count={item.count}
-            color={item.color}
-            onClick={() => navigate(item.path)}
-          />
-        ))}
+        <Card 
+          className={`p-4 cursor-pointer transition-colors ${cardColors.chores}`}
+          onClick={() => navigate('/chores')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-blue-800">Chores</CardTitle>
+            <ClipboardList className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-900">{stats.chores}</div>
+            <p className="text-xs text-blue-700">pending tasks</p>
+          </CardContent>
+        </Card>
+        
+        <Card 
+           className={`p-4 cursor-pointer transition-colors ${cardColors.groceries}`}
+           onClick={() => navigate('/groceries')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-green-800">Groceries</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-900">{stats.groceries}</div>
+            <p className="text-xs text-green-700">items needed</p>
+          </CardContent>
+        </Card>
+
+        <Card 
+           className={`p-4 cursor-pointer transition-colors ${cardColors.expenses}`}
+           onClick={() => navigate('/expenses')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-yellow-800">Expenses</CardTitle>
+            <DollarSign className="h-4 w-4 text-yellow-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-900">{stats.expenses}</div>
+            <p className="text-xs text-yellow-700">pending payments</p>
+          </CardContent>
+        </Card>
+
+        <Card 
+           className={`p-4 cursor-pointer transition-colors ${cardColors.reminders}`}
+           onClick={() => navigate('/reminders')}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-purple-800">Reminders</CardTitle>
+            <Bell className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-900">{stats.reminders}</div>
+            <p className="text-xs text-purple-700">active reminders</p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

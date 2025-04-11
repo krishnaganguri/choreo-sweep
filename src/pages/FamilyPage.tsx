@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -21,84 +22,50 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { familyService } from '@/lib/services';
-import type { Family, FamilyMember } from '@/lib/types';
 import { useFamily } from '@/lib/hooks/useFamily';
-import { PendingInvitations } from '@/components/PendingInvitations';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
+
+// Define types for better type safety
+interface Member {
+  id: string;
+  user_id: string;
+  display_name: string;
+  profile: {
+    email: string;
+  };
+  role: 'admin' | 'member';
+  features_allowed: string[];
+}
 
 export const FamilyPage = () => {
-  const [selectedFamily, setSelectedFamily] = useState<Family | null>(null);
-  const [members, setMembers] = useState<(FamilyMember & { user: { email: string } })[]>([]);
-  const [newFamilyName, setNewFamilyName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [showCreateFamilyDialog, setShowCreateFamilyDialog] = useState(false);
   const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
-  const [showEditFamilyDialog, setShowEditFamilyDialog] = useState(false);
+  const [newFamilyName, setNewFamilyName] = useState('');
+  const [showCreateFamilyDialog, setShowCreateFamilyDialog] = useState(false);
+  const [addMemberError, setAddMemberError] = useState<string | null>(null);
   const { toast } = useToast();
-  const { isAdmin, refreshFamilies, families, currentFamily, setCurrentFamily } = useFamily();
+  const { family, isAdmin, refreshFamily } = useFamily();
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (families.length > 0) {
-      // Always set the selected family if we have families but no selection
-      if (!selectedFamily) {
-        const family = families[0];
-        setSelectedFamily(family);
-        setCurrentFamily(family);
-      }
-      // If we have exactly one family, ensure it's selected
-      if (families.length === 1) {
-        const family = families[0];
-        setSelectedFamily(family);
-        setCurrentFamily(family);
-      }
-    }
-  }, [families, selectedFamily]);
-
-  useEffect(() => {
-    if (selectedFamily) {
-      loadFamilyMembers();
-    }
-  }, [selectedFamily]);
-
-  const loadFamilyMembers = async () => {
-    if (!selectedFamily) return;
-    try {
-      const data = await familyService.getFamilyMembers(selectedFamily.id);
-      setMembers(data);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load family members',
-        variant: 'destructive',
-      });
-    }
-  };
-
   // Query for family members
-  const { data: membersData = [] } = useQuery({
-    queryKey: ['familyMembers', selectedFamily?.id],
-    queryFn: () => selectedFamily ? familyService.getFamilyMembers(selectedFamily.id) : [],
-    enabled: !!selectedFamily,
+  const { data: members = [] } = useQuery<Member[]>({
+    queryKey: ['familyMembers', family?.id],
+    queryFn: () => family ? familyService.getFamilyMembers(family.id) : [],
+    enabled: !!family,
   });
 
   // Mutations
   const createFamilyMutation = useMutation({
     mutationFn: (name: string) => familyService.createFamily(name),
-    onSuccess: async (createdFamily) => {
-      setSelectedFamily(createdFamily);
-      setCurrentFamily(createdFamily);
+    onSuccess: async () => {
       setNewFamilyName('');
       setShowCreateFamilyDialog(false);
+      await refreshFamily();
       await queryClient.invalidateQueries({ queryKey: ['families'] });
       toast({
         title: 'Success',
@@ -114,104 +81,57 @@ export const FamilyPage = () => {
     },
   });
 
-  const updateFamilyMutation = useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) => 
-      familyService.updateFamily(id, name),
-    onSuccess: async () => {
-      setNewFamilyName('');
-      setShowEditFamilyDialog(false);
-      await queryClient.invalidateQueries({ queryKey: ['families'] });
-      toast({
-        title: 'Success',
-        description: 'Family updated successfully',
-      });
-    },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to update family',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  const deleteFamilyMutation = useMutation({
-    mutationFn: (id: string) => familyService.deleteFamily(id),
-    onSuccess: async () => {
-      setSelectedFamily(null);
-      setCurrentFamily(null);
-      setNewFamilyName('');
-      await queryClient.invalidateQueries({ queryKey: ['families'] });
-      toast({
-        title: 'Success',
-        description: 'Family deleted successfully',
-      });
-    },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to delete family',
-        variant: 'destructive',
-      });
-    },
-  });
-
   const addMemberMutation = useMutation({
     mutationFn: ({ familyId, email }: { familyId: string; email: string }) =>
       familyService.addFamilyMember(familyId, email, 'member'),
     onSuccess: async () => {
       setNewMemberEmail('');
+      setAddMemberError(null);
       setShowAddMemberDialog(false);
-      await queryClient.invalidateQueries({ queryKey: ['familyMembers', selectedFamily?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['familyMembers', family?.id] });
       toast({
         title: 'Success',
         description: 'Member added successfully',
       });
     },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to add member',
-        variant: 'destructive',
-      });
+    onError: (error: Error) => {
+      let description = 'Failed to add member. Please try again.';
+      if (error.message === 'USER_NOT_FOUND') {
+        description = `User with email ${newMemberEmail} not found. Please ask them to sign up first.`;
+      } else if (error.message.includes('already a member')) {
+        description = 'This user is already a member of this family.';
+      } else if (error.message) {
+        description = error.message;
+      } 
+      setAddMemberError(description);
     },
   });
 
-  const updateRoleMutation = useMutation({
-    mutationFn: ({ familyId, userId, role }: { familyId: string; userId: string; role: 'admin' | 'member' }) =>
-      familyService.updateMemberRole(familyId, userId, role),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['familyMembers', selectedFamily?.id] });
-      toast({
-        title: 'Success',
-        description: 'Role updated successfully',
-      });
+  const updateFeatureAccessMutation = useMutation({
+    mutationFn: ({ familyId, userId, features }: { familyId: string; userId: string; features: string[] }) =>
+      familyService.updateMemberFeatures(familyId, userId, features),
+    onSuccess: (_, { userId, features }) => {
+      queryClient.setQueryData(['familyMembers', family?.id], (old: Member[] = []) =>
+        old.map(m => m.user_id === userId ? { ...m, features_allowed: features } : m)
+      );
+      toast({ title: 'Success', description: 'Feature access updated' });
     },
     onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to update role',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to update features', variant: 'destructive' });
     },
   });
 
   const removeMemberMutation = useMutation({
     mutationFn: ({ familyId, userId }: { familyId: string; userId: string }) =>
       familyService.removeFamilyMember(familyId, userId),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['familyMembers', selectedFamily?.id] });
-      toast({
-        title: 'Success',
-        description: 'Member removed successfully',
-      });
+    onSuccess: (_, { userId }) => {
+      queryClient.setQueryData(['familyMembers', family?.id], (old: Member[] = []) =>
+        old.filter(m => m.user_id !== userId)
+      );
+      toast({ title: 'Success', description: 'Member removed successfully' });
     },
     onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to remove member',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to remove member', variant: 'destructive' });
     },
   });
 
@@ -221,231 +141,177 @@ export const FamilyPage = () => {
     createFamilyMutation.mutate(newFamilyName);
   };
 
-  const handleUpdateFamily = () => {
-    if (!selectedFamily || !newFamilyName.trim()) return;
-    updateFamilyMutation.mutate({ id: selectedFamily.id, name: newFamilyName });
+  const handleAddMember = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddMemberError(null);
+    if (!family || !newMemberEmail) return;
+    addMemberMutation.mutate({ familyId: family.id, email: newMemberEmail });
   };
 
-  const handleDeleteFamily = () => {
-    if (!selectedFamily) return;
-    deleteFamilyMutation.mutate(selectedFamily.id);
+  const handleUpdateFeatureAccess = (userId: string, feature: string, enabled: boolean) => {
+    if (!family) return;
+    const member = members.find(m => m.user_id === userId);
+    if (!member) return;
+
+    const updatedFeatures = enabled
+      ? [...(member.features_allowed || []), feature]
+      : (member.features_allowed || []).filter((f: string) => f !== feature);
+
+    updateFeatureAccessMutation.mutate({
+      familyId: family.id,
+      userId,
+      features: updatedFeatures,
+    });
   };
 
-  const handleAddMember = () => {
-    if (!selectedFamily || !newMemberEmail.trim()) return;
-    addMemberMutation.mutate({ familyId: selectedFamily.id, email: newMemberEmail });
-  };
+  const availableFeatures = ['chores', 'groceries', 'expenses', 'reminders'];
 
-  const handleUpdateRole = (userId: string, role: 'admin' | 'member') => {
-    if (!selectedFamily) return;
-    updateRoleMutation.mutate({ familyId: selectedFamily.id, userId, role });
-  };
-
-  const handleRemoveMember = (userId: string) => {
-    if (!selectedFamily) return;
-    removeMemberMutation.mutate({ familyId: selectedFamily.id, userId });
-  };
+  if (!family) {
+    return (
+      <div className="container mx-auto py-6">
+        <h1 className="text-2xl font-bold mb-6">Family Management</h1>
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Join or Create a Family</h2>
+          <p className="text-muted-foreground mb-4">
+            You currently don't belong to any family. Please contact a family admin to receive an invitation.
+          </p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto py-6 space-y-6">
       <h1 className="text-2xl font-bold mb-6">Family Management</h1>
 
-      <PendingInvitations />
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-4">Your Families</h2>
-          
-          <div className="space-y-4">
-            <div className="flex flex-col gap-4">
-              {families.length > 0 && (
-                <Select
-                  value={selectedFamily?.id}
-                  onValueChange={(value) => {
-                    const family = families.find(f => f.id === value);
-                    if (family) {
-                      setSelectedFamily(family);
-                      setCurrentFamily(family);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a family" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {families.map((family) => (
-                      <SelectItem key={family.id} value={family.id}>
-                        {family.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-
-              <Dialog open={showCreateFamilyDialog} onOpenChange={setShowCreateFamilyDialog}>
-                <DialogTrigger asChild>
-                  <Button className="w-full">Create New Family</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create New Family</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="familyName">Family Name</Label>
-                      <Input
-                        id="familyName"
-                        value={newFamilyName}
-                        onChange={(e) => setNewFamilyName(e.target.value)}
-                        placeholder="Enter family name"
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setShowCreateFamilyDialog(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleCreateFamily}>Create</Button>
-                    </div>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Family Members</CardTitle>
+          {isAdmin && (
+            <Dialog 
+              open={showAddMemberDialog} 
+              onOpenChange={(open) => {
+                setShowAddMemberDialog(open);
+                if (!open) {
+                  setNewMemberEmail('');
+                  setAddMemberError(null);
+                }
+              }}
+            >
+              <DialogTrigger asChild>
+                <Button>Add Member</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Family Member</DialogTitle>
+                  <DialogDescription>
+                    Add a new member by entering their email address. They must have already signed up.
+                  </DialogDescription>
+                </DialogHeader>
+                
+                {addMemberError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{addMemberError}</AlertDescription>
+                  </Alert>
+                )}
+                
+                <form onSubmit={handleAddMember} className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="member-email">Member Email</Label>
+                    <Input
+                      id="member-email"
+                      type="email"
+                      value={newMemberEmail}
+                      onChange={(e) => {
+                        setNewMemberEmail(e.target.value);
+                        setAddMemberError(null);
+                      }}
+                      placeholder="Enter member's email"
+                      required
+                    />
                   </div>
-                </DialogContent>
-              </Dialog>
-
-              {selectedFamily && (
-                <div className="flex gap-2">
-                  <Dialog open={showEditFamilyDialog} onOpenChange={setShowEditFamilyDialog}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="flex-1">Edit</Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Edit Family</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="editFamilyName">Family Name</Label>
-                          <Input
-                            id="editFamilyName"
-                            value={newFamilyName}
-                            onChange={(e) => setNewFamilyName(e.target.value)}
-                            placeholder="Enter new family name"
-                          />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <Button variant="outline" onClick={() => setShowEditFamilyDialog(false)}>
-                            Cancel
-                          </Button>
-                          <Button onClick={handleUpdateFamily}>Update</Button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" className="flex-1">Delete</Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete the family
-                          and remove all associated data including chores, groceries, expenses, and reminders.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteFamily}>
-                          Delete Family
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              )}
-            </div>
-          </div>
-        </Card>
-
-        {selectedFamily && (
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Family Members</h2>
-            
-            <div className="space-y-4">
-              {isAdmin(selectedFamily.id) && (
-                <Dialog open={showAddMemberDialog} onOpenChange={setShowAddMemberDialog}>
-                  <DialogTrigger asChild>
-                    <Button className="w-full">Add Member</Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add Family Member</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="memberEmail">Member Email</Label>
-                        <Input
-                          id="memberEmail"
-                          type="email"
-                          value={newMemberEmail}
-                          onChange={(e) => setNewMemberEmail(e.target.value)}
-                          placeholder="Enter member email"
-                        />
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setShowAddMemberDialog(false)}>
-                          Cancel
-                        </Button>
-                        <Button onClick={handleAddMember}>Add Member</Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              )}
-
-              {membersData.map((member) => (
-                <div key={member.id} className="flex items-center justify-between p-2 bg-muted rounded">
-                  <div>
-                    <p className="font-medium">{member.display_name}</p>
-                    <p className="text-sm text-muted-foreground">{member.user.email}</p>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowAddMemberDialog(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={addMemberMutation.isPending}>
+                      {addMemberMutation.isPending ? 'Adding...' : 'Add Member'}
+                    </Button>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {!member.is_verified && (
-                      <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded">
-                        Pending
-                      </span>
-                    )}
-                    {isAdmin(selectedFamily.id) && (
-                      <>
-                        <Select
-                          value={member.role}
-                          onValueChange={(value: 'admin' | 'member') => 
-                            handleUpdateRole(member.user_id, value)
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {members.map((member) => (
+            <Card key={member.user_id} className="p-4 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div className="flex-1">
+                <p className="font-semibold">{member.display_name}</p>
+                <p className="text-sm text-muted-foreground">{member.profile?.email}</p>
+                <p className="text-xs text-muted-foreground">Role: {member.role}</p>
+              </div>
+              {isAdmin && member.role !== 'admin' && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium mb-2">Feature Access:</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    {availableFeatures.map((feature) => (
+                      <div key={feature} className="flex items-center space-x-2">
+                        <Switch
+                          id={`${member.user_id}-${feature}`}
+                          checked={member.features_allowed?.includes(feature)}
+                          onCheckedChange={(checked) =>
+                            handleUpdateFeatureAccess(member.user_id, feature, checked)
                           }
-                        >
-                          <SelectTrigger className="w-[100px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="member">Member</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleRemoveMember(member.user_id)}
-                        >
-                          Remove
-                        </Button>
-                      </>
-                    )}
+                        />
+                        <Label htmlFor={`${member.user_id}-${feature}`} className="capitalize">
+                          {feature}
+                        </Label>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          </Card>
-        )}
-      </div>
+              )}
+              {isAdmin && member.role !== 'admin' && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm">Remove</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently remove 
+                        <span className="font-semibold"> {member.display_name} </span> 
+                        from the family.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction 
+                         className="bg-destructive hover:bg-destructive/90"
+                         onClick={() => {
+                           if (family) { 
+                              removeMemberMutation.mutate({ familyId: family.id, userId: member.user_id })
+                           }
+                         }}
+                      >
+                        Confirm Remove
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </Card>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   );
 }; 
